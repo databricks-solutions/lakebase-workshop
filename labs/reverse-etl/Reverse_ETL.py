@@ -171,7 +171,7 @@ display(spark.sql(f"SELECT * FROM {SOURCE_TABLE}"))
 # MAGIC | Snapshot (full refresh) | ~2,000 rows/sec |
 # MAGIC
 # MAGIC Each synced table uses up to 16 connections to your Lakebase database. Total logical
-# MAGIC data size limit across all synced tables is 8 TB. Databricks recommends individual
+# MAGIC data size limit across all synced tables is 16 TB. Databricks recommends individual
 # MAGIC tables not exceed 1 TB for tables requiring refreshes.
 # MAGIC
 # MAGIC > **Docs:** [Sync modes](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#sync-modes)
@@ -308,6 +308,7 @@ else:
 # MAGIC
 # MAGIC | Path | Folder | What You'll Learn |
 # MAGIC |------|--------|-------------------|
+# MAGIC | **Lakehouse Sync** *(Beta)* | `labs/lakehouse-sync/` | The inverse pattern — sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 |
 # MAGIC | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
