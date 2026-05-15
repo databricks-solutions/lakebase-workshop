@@ -54,29 +54,15 @@
 # MAGIC
 # MAGIC ### How It Fits in the Databricks Platform
 # MAGIC
-# MAGIC ```
-# MAGIC ┌─────────────────────────────────────────────────────┐
-# MAGIC │                  Databricks Workspace               │
-# MAGIC │                                                     │
-# MAGIC │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
-# MAGIC │  │  Delta    │  │  Model   │  │  Lakebase        │  │
-# MAGIC │  │  Lake     │──│  Serving │  │  (PostgreSQL)    │  │
-# MAGIC │  │  (OLAP)   │  │  (AI)    │  │  (OLTP)          │  │
-# MAGIC │  └──────────┘  └──────────┘  └──────────────────┘  │
-# MAGIC │       │              │               ▲              │
-# MAGIC │       │         ┌────┘               │              │
-# MAGIC │       ▼         ▼                    │              │
-# MAGIC │  ┌──────────────────┐    ┌───────────────────┐      │
-# MAGIC │  │  Databricks Apps │───▶│  Synced Tables     │      │
-# MAGIC │  │  (Full-stack)    │    │  (Reverse ETL)     │      │
-# MAGIC │  └──────────────────┘    └───────────────────┘      │
-# MAGIC └─────────────────────────────────────────────────────┘
-# MAGIC ```
+# MAGIC ![Lakebase integration with Databricks services](../docs/images/lakebase-architecture.png)
 # MAGIC
 # MAGIC - **Delta Lake** stores your analytical data (OLAP)
 # MAGIC - **Lakebase** serves operational data at low latency (OLTP)
-# MAGIC - **Synced Tables** bridge the two via Reverse ETL
-# MAGIC - **Databricks Apps** connect to Lakebase as a backend database
+# MAGIC - **Synced Tables** push lakehouse data into Lakebase for low-latency serving
+# MAGIC - **Lakehouse Sync** *(Beta)* streams Lakebase changes back into Delta with CDC + SCD Type 2
+# MAGIC - **Databricks Apps**, **AI agents**, and **Feature Store** all connect to Lakebase as a backend
+# MAGIC
+# MAGIC *Source: [What is Lakebase Autoscaling?](https://docs.databricks.com/aws/en/oltp/projects/about)*
 
 # COMMAND ----------
 
@@ -343,13 +329,14 @@ print("  Lakebase project automatically.")
 # MAGIC |---|------|--------|-------------------|
 # MAGIC | 1 | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | 2 | **Reverse ETL** | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase for low-latency serving |
-# MAGIC | 3 | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
-# MAGIC | 4 | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
-# MAGIC | 5 | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
-# MAGIC | 6 | **Backup & Recovery** | `labs/backup-recovery/` | Point-in-time recovery, branch snapshots, instant restore |
-# MAGIC | 7 | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
-# MAGIC | 8 | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase |
-# MAGIC | 9 | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
+# MAGIC | 3 | **Lakehouse Sync** *(Beta)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only) |
+# MAGIC | 4 | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
+# MAGIC | 5 | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
+# MAGIC | 6 | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
+# MAGIC | 7 | **Backup & Recovery** | `labs/backup-recovery/` | Point-in-time recovery, branch snapshots, instant restore |
+# MAGIC | 8 | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
+# MAGIC | 9 | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase |
+# MAGIC | 10 | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
 
 # COMMAND ----------
 

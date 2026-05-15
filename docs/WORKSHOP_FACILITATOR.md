@@ -44,10 +44,10 @@ After the foundation, participants follow a track based on their role. Each trac
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
 | 1 | Reverse ETL | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase |
-| 2 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
-| 3 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
+| 2 | Lakehouse Sync *(Beta)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only placeholder) |
+| 3 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
 
-**Key narrative:** *"Your analytics data, served at OLTP speed — with native reverse ETL and a feature store that IS Lakebase."*
+**Key narrative:** *"Move data both ways between Lakebase and the Lakehouse natively — and use Lakebase as the online feature store."*
 
 #### Platform Architects
 
@@ -58,8 +58,9 @@ After the foundation, participants follow a track based on their role. Each trac
 | 1 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero |
 | 2 | Authentication | `labs/authentication/` | OAuth tokens, roles, two-layer permissions |
 | 3 | Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, instant restore |
+| 4 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 
-**Key narrative:** *"Fully managed PostgreSQL with Git-like branching, OAuth security, and instant recovery — governed by Unity Catalog."*
+**Key narrative:** *"Fully managed PostgreSQL with Git-like branching, OAuth security, instant recovery, and native Postgres observability — all governed by Unity Catalog."*
 
 ### All Labs Reference
 
@@ -69,6 +70,7 @@ Every lab lives directly in `labs/`. No track folder structure — tracks are a 
 |-----|----------|----------------|
 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
 | Reverse ETL | `labs/reverse-etl/` | Synced tables from Delta Lake |
+| Lakehouse Sync *(Beta)* | `labs/lakehouse-sync/` | Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only placeholder) |
 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero |
 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 | Authentication | `labs/authentication/` | OAuth tokens, roles, permissions |
@@ -88,7 +90,7 @@ Best for mixed audiences. Everyone does the foundation together, then splits int
 | 0:00 – 0:15 | **Introduction**: What is Lakebase? Architecture overview | Slides + foundation |
 | 0:15 – 0:30 | **Setup**: Clone repo, run `setup.sh`, deploy content | Terminal |
 | 0:30 – 0:45 | **Foundation**: Create Lakebase project + seed schema | `notebooks/00_Setup_Lakebase_Project` |
-| 0:45 – 1:45 | **Track Time**: Participants follow their track (3 labs each) | See track tables above |
+| 0:45 – 1:45 | **Track Time**: Participants follow their track (3 labs, or 4 for Platform Architects) | See track tables above |
 | 1:45 – 2:15 | **Cross-Track Exploration**: Try a lab from another track | Participant choice |
 | 2:15 – 2:30 | **Wrap-up**: App Deployment overview, Q&A | `labs/app-deployment/` |
 
@@ -248,6 +250,15 @@ For a guided workshop, direct participants to specific paths based on the timing
 3. Check sync status
 4. Key talking point: *"Your analytics lakehouse data, served at OLTP speed."*
 
+#### Lakehouse Sync — Lakebase → Delta *(Beta, UI walkthrough)*
+
+1. Confirm the **Lakehouse Sync** preview is enabled (workspace Previews page)
+2. From the Lakebase project UI, configure a sync from a `databricks_postgres` table to a Unity Catalog destination
+3. Make a few row-level changes in Postgres (inserts / updates / deletes)
+4. Open the destination Delta table — show the SCD Type 2 history rows accumulating
+5. Key talking point: *"Lakebase moves data both ways natively — Reverse ETL pushes Delta in, Lakehouse Sync streams Postgres changes back out with full CDC history."*
+6. **Note:** This lab is a placeholder — the SDK/API is not yet GA, so the demo runs entirely from the workspace UI. See `labs/lakehouse-sync/README.md`.
+
 #### Online Feature Store
 
 1. Create a feature table with primary key and CDF
@@ -256,14 +267,6 @@ For a guided workshop, direct participants to specific paths based on the timing
 4. Connect directly to the online store via PostgreSQL
 5. Key talking point: *"Your online feature store IS Lakebase — same managed PostgreSQL, optimized for ML serving."*
 6. **Note:** Requires DBR 16.4 LTS ML or serverless. Online store provisioning takes 2–4 minutes.
-
-#### Observability — Monitoring
-
-1. Show database-level stats (cache hit %, connections, commits)
-2. Walk through table-level activity (seq scans vs index scans)
-3. Show index usage — point out any unused indexes
-4. Show active connections
-5. Key talking point: *"All standard PostgreSQL observability — plus the workspace monitoring UI."*
 
 ---
 
@@ -300,6 +303,14 @@ For a guided workshop, direct participants to specific paths based on the timing
 3. Recover by branching from the snapshot
 4. Explain PITR and the 35-day window
 5. Key talking point: *"Backups are always on. Recovery is instant via branching."*
+
+#### Observability — Monitoring
+
+1. Show database-level stats (cache hit %, connections, commits)
+2. Walk through table-level activity (seq scans vs index scans)
+3. Show index usage — point out any unused indexes
+4. Show active connections
+5. Key talking point: *"All standard PostgreSQL observability — plus the workspace monitoring UI."*
 
 ## Architecture
 
@@ -389,6 +400,8 @@ Lakebase-Workshop/
 │   │   └── Advanced_Postgres.sql
 │   ├── reverse-etl/                            # Synced tables from Delta
 │   │   └── Reverse_ETL.py
+│   ├── lakehouse-sync/                         # Lakebase → Delta CDC (Beta, UI-only placeholder)
+│   │   └── README.md
 │   ├── observability/                          # pg_stat views, monitoring
 │   │   └── Observability_and_Monitoring.py
 │   ├── backup-recovery/                        # PITR, snapshots

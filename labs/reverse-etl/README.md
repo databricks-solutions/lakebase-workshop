@@ -63,7 +63,7 @@ For Snapshot and Triggered modes, the initial sync runs automatically on creatio
 ### Capacity Planning
 
 - Each synced table uses up to **16 connections** to your Lakebase database
-- Total logical data size limit across all synced tables: **8 TB**
+- Total logical data size limit across all synced tables: **16 TB**
 - Individual tables should not exceed **1 TB** for tables requiring refreshes
 - Only additive schema changes (e.g., adding columns) are supported for Triggered and Continuous modes
 

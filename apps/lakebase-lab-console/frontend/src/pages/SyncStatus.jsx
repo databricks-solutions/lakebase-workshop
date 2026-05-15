@@ -274,7 +274,7 @@ w.postgres.create_synced_table(
           </div>
           <div className="info-box danger">
             <span style={{ fontWeight: 600 }}>Size Limits:</span>
-            <span>8 TB total across all synced tables per project.</span>
+            <span>16 TB total across all synced tables per project.</span>
           </div>
         </div>
       </div>

@@ -59,8 +59,8 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 | Lab | What You'll Do |
 |-----|----------------|
 | **Reverse ETL** | Sync your Delta Lake tables into Lakebase for fast lookups |
+| **Lakehouse Sync** *(Beta)* | Sync Lakebase back to the lakehouse as Delta with full CDC history |
 | **Online Feature Store** | Serve ML features in real time from Lakebase |
-| **Observability** | Monitor database performance and query activity |
 
 ### Platform Architects
 
@@ -71,6 +71,7 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 | **Development Experience** | Create isolated database branches, test autoscaling |
 | **Authentication** | Explore token-based auth and role permissions |
 | **Backup & Recovery** | Try point-in-time recovery and instant snapshots |
+| **Observability** | Monitor database performance, indexes, and query activity |
 
 All labs are in the `labs/` folder, organized by topic.
 
