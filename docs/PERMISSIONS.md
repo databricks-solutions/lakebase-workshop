@@ -24,8 +24,11 @@ Each participant runs Step 6 in `00_Setup_Lakebase_Project` (or the equivalent c
 in the App Deployment lab). This:
 
 1. Looks up the app's SP client_id
-2. Creates a PostgreSQL OAuth role for the SP: `SELECT databricks_create_role('<SP_CLIENT_ID>', 'service_principal')`
-3. Grants schema access: `GRANT ALL ON SCHEMA ... TO "<SP_CLIENT_ID>"`
+2. Ensures the `databricks_auth` extension is installed: `CREATE EXTENSION IF NOT EXISTS databricks_auth`
+   — this extension provides the `databricks_create_role()` function, and each
+   Postgres database needs its own copy.
+3. Creates a PostgreSQL OAuth role for the SP: `SELECT databricks_create_role('<SP_CLIENT_ID>', 'service_principal')`
+4. Grants schema access: `GRANT ALL ON SCHEMA ... TO "<SP_CLIENT_ID>"`
 
 ## What Each User Needs
 
@@ -57,7 +60,8 @@ Lakebase has two independent permission layers:
    Since projects are governed by Unity Catalog, the SP is granted access when
    each user runs the setup notebook.
 2. **Database permissions** — the SP needs a PostgreSQL role with schema grants.
-   This is handled by `databricks_create_role` + `GRANT` in the setup notebook.
+   This is handled by `databricks_create_role` (from the `databricks_auth`
+   extension) + `GRANT` in the setup notebook.
 
 ### Why Not User Token Passthrough?
 

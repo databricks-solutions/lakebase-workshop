@@ -225,6 +225,145 @@ ok "App name: $APP_NAME (shared by all users)"
 
 DEPLOYED_APP=false
 
+# Pre-flight check: the Lab Console app binds to a Lakebase project as its
+# `postgres` resource. If the facilitator hasn't created their project yet,
+# the resource attachment + SP grant steps below will fail with confusing
+# "No endpoints" errors. Offer to create it now (or run the notebook manually).
+ensure_lakebase_project() {
+  local project_id="$1"
+  local schema="$2"
+  local profile="$3"
+
+  step "Checking your Lakebase project"
+
+  if databricks postgres get-project "projects/$project_id" --profile "$profile" &>/dev/null; then
+    ok "Lakebase project '$project_id' exists"
+    return 0
+  fi
+
+  echo ""
+  warn "No Lakebase project found for your account."
+  info "Project ID: $project_id"
+  echo ""
+  info "The Lab Console app needs an existing Lakebase project to attach to."
+  info "Choose how to proceed:"
+  echo ""
+  echo -e "    ${BOLD}M)${RESET} Manually run ${BOLD}notebooks/00_Setup_Lakebase_Project${RESET} in your workspace,"
+  echo -e "       then re-run ${BOLD}bash setup.sh${RESET}"
+  echo -e "    ${BOLD}A)${RESET} Auto-create the project + seed schema now (~2-3 min)"
+  echo ""
+  ask "Choice (A/m):"
+  read -r CREATE_CHOICE
+  CREATE_CHOICE="${CREATE_CHOICE:-A}"
+
+  if [[ "$CREATE_CHOICE" =~ ^[Mm] ]]; then
+    echo ""
+    info "Please open this notebook in your Databricks workspace and run all cells:"
+    info "  Workspace > Users > $USER_EMAIL > .bundle > lakebase-workshop > dev > files > notebooks > 00_Setup_Lakebase_Project"
+    info ""
+    info "Then re-run: ${BOLD}bash setup.sh${RESET}"
+    echo ""
+    fail "Setup paused until the Lakebase project exists."
+  fi
+
+  if ! python3 -c "import databricks.sdk, psycopg" &>/dev/null; then
+    info "Installing databricks-sdk + psycopg (needed to auto-create the project)..."
+    if ! $PIP_CMD install -q "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null; then
+      $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null || true
+    fi
+    if ! python3 -c "import databricks.sdk, psycopg" &>/dev/null; then
+      fail "Could not install databricks-sdk + psycopg. Run the setup notebook manually instead."
+    fi
+  fi
+
+  info "Creating Lakebase project '$project_id' (1-3 min)..."
+
+  if python3 - "$project_id" "$schema" "$profile" "$SCRIPT_DIR" <<'PYEOF'
+import os
+import sys
+import time
+
+project_id = sys.argv[1]
+schema = sys.argv[2]
+profile = sys.argv[3]
+script_dir = sys.argv[4]
+
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.postgres import Project, ProjectSpec
+
+w = WorkspaceClient(profile=profile)
+
+try:
+    w.postgres.get_project(name=f"projects/{project_id}")
+    print(f"  ✓ Project already exists")
+except Exception:
+    print(f"  Creating project...")
+    operation = w.postgres.create_project(
+        project=Project(
+            spec=ProjectSpec(
+                display_name=f"Lakebase Workshop: {project_id}",
+                pg_version="17",
+            )
+        ),
+        project_id=project_id,
+    )
+    operation.wait()
+    print(f"  ✓ Project created")
+
+print(f"  Waiting for production endpoint to become active...")
+endpoint = None
+for _ in range(90):
+    try:
+        endpoints = list(w.postgres.list_endpoints(
+            parent=f"projects/{project_id}/branches/production"
+        ))
+        if endpoints:
+            ep = w.postgres.get_endpoint(name=endpoints[0].name)
+            state = str(getattr(ep.status, "current_state", "")).upper()
+            if "ACTIVE" in state:
+                endpoint = ep
+                print(f"  ✓ Endpoint active: {ep.status.hosts.host}")
+                break
+    except Exception:
+        pass
+    time.sleep(5)
+
+if endpoint is None:
+    print("  ✗ Endpoint did not become active in time")
+    sys.exit(1)
+
+print(f"  Seeding schema '{schema}'...")
+import psycopg
+
+seed_path = os.path.join(script_dir, "bootstrap", "seed.sql")
+with open(seed_path) as f:
+    seed_sql = f.read().replace("{schema}", schema)
+
+cred = w.postgres.generate_database_credential(endpoint=endpoint.name)
+user_email = w.current_user.me().user_name
+
+with psycopg.connect(
+    host=endpoint.status.hosts.host,
+    dbname="databricks_postgres",
+    user=user_email,
+    password=cred.token,
+    sslmode="require",
+) as conn:
+    with conn.cursor() as cur:
+        cur.execute(seed_sql)
+    conn.commit()
+
+print(f"  ✓ Schema seeded")
+PYEOF
+  then
+    ok "Lakebase project ready"
+    return 0
+  else
+    warn "Auto-create failed. Run notebooks/00_Setup_Lakebase_Project manually, then re-run setup.sh."
+    return 1
+  fi
+}
+
 step "Deploy to workspace"
 info "What would you like to deploy?"
 echo ""
@@ -236,6 +375,17 @@ read -r DEPLOY_CHOICE
 DEPLOY_CHOICE="${DEPLOY_CHOICE:-1}"
 
 if [[ "$DEPLOY_CHOICE" == "2" ]]; then
+  PG_SCHEMA=$(python3 -c "
+import re
+email = '$USER_EMAIL'
+name = email.split('@')[0]
+name = re.sub(r'[^a-z0-9-]', '-', name.lower())
+name = re.sub(r'-+', '-', name).strip('-')
+print(f'lakebase_lab_{name.replace(\"-\", \"_\")}')
+" 2>/dev/null || echo "")
+
+  ensure_lakebase_project "$PROJECT_ID" "$PG_SCHEMA" "$PROFILE"
+
   FRONTEND_DIR="$SCRIPT_DIR/apps/lakebase-lab-console/frontend"
   if [[ -f "$FRONTEND_DIR/package.json" ]]; then
     if command -v npm &>/dev/null; then
@@ -409,6 +559,11 @@ conn = psycopg.connect(
     sslmode="require",
 )
 with conn.cursor() as cur:
+    # The databricks_auth extension provides databricks_create_role().
+    # It's per-database and idempotent — safe to run on every setup.
+    cur.execute("CREATE EXTENSION IF NOT EXISTS databricks_auth")
+    print(f"  ✓ databricks_auth extension ready")
+
     try:
         cur.execute(f"SELECT databricks_create_role('{sp_id}', 'service_principal')")
         print(f"  ✓ Created OAuth role for SP")
@@ -430,18 +585,9 @@ PYEOF
 }
 
 if [[ "$DEPLOYED_APP" == "true" ]]; then
-  PG_SCHEMA=$(python3 -c "
-import re
-email = '$USER_EMAIL'
-name = email.split('@')[0]
-name = re.sub(r'[^a-z0-9-]', '-', name.lower())
-name = re.sub(r'-+', '-', name).strip('-')
-print(f'lakebase_lab_{name.replace(\"-\", \"_\")}')
-" 2>/dev/null || echo "")
-
   reattach_lakebase_resource "$APP_NAME" "$PROJECT_ID" "$PROFILE" || true
 
-  if [[ -n "$PG_SCHEMA" ]]; then
+  if [[ -n "${PG_SCHEMA:-}" ]]; then
     grant_sp_access "$PROJECT_ID" "$PG_SCHEMA" "$PROFILE" || true
   else
     warn "Could not derive schema name — run SP grants from the setup notebook"

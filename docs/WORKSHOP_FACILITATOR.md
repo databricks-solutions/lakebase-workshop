@@ -155,6 +155,9 @@ participants use it. During `setup.sh`, choose **option 2 (Labs + App)** to depl
 everything including the app.
 
 The setup script will also:
+- **Ensure your Lakebase project exists** — if you haven't already run the setup
+  notebook, you'll be prompted to either auto-create the project + seed schema
+  inline, or pause and run `00_Setup_Lakebase_Project` first (then re-run setup.sh)
 - **Attach a postgres resource** to the app (your Lakebase project), giving the SP the `postgres` OAuth scope
 - **Grant the SP access** to your schema so the app can connect to your project
 
@@ -443,6 +446,8 @@ Lakebase-Workshop/
 | Lab Console shows "Loading..." forever | Check `/api/dbtest` — likely a token or endpoint issue |
 | Lab Console shows wrong user | Hard-refresh the browser to pick up fresh headers |
 | "does not have required scopes: postgres" | The app's postgres resource is not attached. Re-run `setup.sh` with option 2, or attach manually in the Apps UI. |
+| `function databricks_create_role(...) does not exist` | The `databricks_auth` extension isn't installed in the Postgres database. Run `CREATE EXTENSION IF NOT EXISTS databricks_auth;` (idempotent, per-database). The current setup notebook + App Deployment lab do this automatically in Step 6. |
+| Facilitator deploys app and sees "project wasn't there" | `setup.sh` now performs a pre-flight check before option 2 and offers to auto-create the project (or run the notebook manually first). |
 
 ## Cleanup
 

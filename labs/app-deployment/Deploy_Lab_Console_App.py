@@ -143,6 +143,10 @@ print(f"SP Name:      {getattr(app_info, 'service_principal_name', 'N/A')}")
 # MAGIC it didn't create itself.
 # MAGIC
 # MAGIC ```sql
+# MAGIC -- The databricks_auth extension provides the databricks_create_role()
+# MAGIC -- function. Each Postgres database needs its own copy of the extension.
+# MAGIC CREATE EXTENSION IF NOT EXISTS databricks_auth;
+# MAGIC
 # MAGIC -- Create the SP's OAuth role (idempotent — safe to re-run)
 # MAGIC SELECT databricks_create_role('<SP_CLIENT_ID>', 'service_principal');
 # MAGIC
@@ -176,6 +180,11 @@ conn = psycopg.connect(
 )
 
 with conn.cursor() as cur:
+    # The databricks_auth extension provides databricks_create_role().
+    # It's per-database and idempotent — safe to run on every setup.
+    cur.execute("CREATE EXTENSION IF NOT EXISTS databricks_auth")
+    print("✓ databricks_auth extension ready")
+
     try:
         cur.execute(f"SELECT databricks_create_role('{sp_id}', 'service_principal')")
         print(f"✓ Created OAuth role for SP: {sp_id}")
