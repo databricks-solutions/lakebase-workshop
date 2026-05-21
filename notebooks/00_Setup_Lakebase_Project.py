@@ -266,6 +266,11 @@ if sp_id:
     grant_conn = psycopg.connect(**params)
 
     with grant_conn.cursor() as cur:
+        # The databricks_auth extension provides databricks_create_role().
+        # It's per-database and idempotent — safe to run on every setup.
+        cur.execute("CREATE EXTENSION IF NOT EXISTS databricks_auth")
+        print("✓ databricks_auth extension ready")
+
         try:
             cur.execute(f"SELECT databricks_create_role('{sp_id}', 'service_principal')")
             print(f"✓ Created OAuth role for SP: {sp_id}")

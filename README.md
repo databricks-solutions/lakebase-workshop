@@ -91,6 +91,8 @@ The setup notebook (Step 2 above) automatically grants the app access to your da
 | Setup notebook hangs on "Waiting for endpoint" | This is normal -- it can take 2-3 minutes. Let it finish. |
 | "password authentication failed" | Your database token expired (they last 1 hour). Re-run the connection cell in your notebook. |
 | Lab Console shows "Project Not Found" | You haven't run the setup notebook yet. Go back to Step 2. |
+| `function databricks_create_role(...) does not exist` | The `databricks_auth` extension isn't installed in your Postgres database. Run `CREATE EXTENSION IF NOT EXISTS databricks_auth;` once per database — the setup notebook now does this automatically in Step 6. |
+| Deploying the app errors with "No endpoints" before running the setup notebook | Re-run `bash setup.sh` and choose **option 2** — the script now prompts to auto-create your Lakebase project before deploying the app. |
 
 ## Resources
 
