@@ -291,13 +291,30 @@ else:
 # MAGIC ## 5. Grant Service Principal Access (for App)
 # MAGIC
 # MAGIC If you plan to deploy the Lab Console app, its Service Principal needs
-# MAGIC explicit access to synced tables. Connect to Lakebase with `psql` or
-# MAGIC the Authentication lab and run:
+# MAGIC explicit access to synced tables. **Synced tables are special:** they are
+# MAGIC owned by the internal `databricks_writer_` role (the sync pipeline manages
+# MAGIC them), **not** by you. A plain `GRANT ALL ON ALL TABLES` run as a normal
+# MAGIC user will silently miss them.
+# MAGIC
+# MAGIC Per the docs, the **`databricks_superuser`** grants read access to another
+# MAGIC identity. Connect as the `databricks_superuser` and run:
 # MAGIC
 # MAGIC ```sql
-# MAGIC -- Use the PostgreSQL schema where synced tables land (often the same name as UC_SCHEMA above)
-# MAGIC GRANT ALL ON ALL TABLES IN SCHEMA <your_sync_schema> TO "<SP_CLIENT_ID>";
+# MAGIC -- Read access to the synced-table schema and table (run as databricks_superuser)
+# MAGIC GRANT USAGE ON SCHEMA <your_sync_schema> TO "<SP_CLIENT_ID>";
+# MAGIC GRANT SELECT ON <your_sync_schema>.<synced_table> TO "<SP_CLIENT_ID>";
 # MAGIC ```
+# MAGIC
+# MAGIC To let an identity perform allowed management operations on a synced table
+# MAGIC (`CREATE/ALTER/DROP INDEX`, `DROP TABLE`), register it as a manager instead:
+# MAGIC
+# MAGIC ```sql
+# MAGIC CREATE EXTENSION IF NOT EXISTS databricks_auth;
+# MAGIC SELECT databricks_synced_table_add_manager(
+# MAGIC     '"<your_sync_schema>"."<synced_table>"'::regclass, '<SP_CLIENT_ID>');
+# MAGIC ```
+# MAGIC
+# MAGIC > **Docs:** [Synced tables — Ownership and permissions](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#ownership-and-permissions)
 
 # COMMAND ----------
 
@@ -308,7 +325,7 @@ else:
 # MAGIC
 # MAGIC | Path | Folder | What You'll Learn |
 # MAGIC |------|--------|-------------------|
-# MAGIC | **Lakehouse Sync** *(Beta)* | `labs/lakehouse-sync/` | The inverse pattern — sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 |
+# MAGIC | **Lakehouse Sync** *(Public Preview)* | `labs/lakehouse-sync/` | The inverse pattern — sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (CDC change history) |
 # MAGIC | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |

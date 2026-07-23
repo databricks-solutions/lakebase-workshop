@@ -91,7 +91,7 @@ except Exception as e:
 # COMMAND ----------
 
 print("Waiting for dev branch endpoint to activate...")
-time.sleep(10)
+wait_for_endpoint(DEV_BRANCH)
 conn = get_connection(DEV_BRANCH)
 print("✓ Connected to dev branch")
 

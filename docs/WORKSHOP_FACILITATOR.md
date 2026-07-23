@@ -44,7 +44,7 @@ After the foundation, participants follow a track based on their role. Each trac
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
 | 1 | Reverse ETL | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase |
-| 2 | Lakehouse Sync *(Beta)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only placeholder) |
+| 2 | Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
 | 3 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
 
 **Key narrative:** *"Move data both ways between Lakebase and the Lakehouse natively — and use Lakebase as the online feature store."*
@@ -70,7 +70,7 @@ Every lab lives directly in `labs/`. No track folder structure — tracks are a 
 |-----|----------|----------------|
 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
 | Reverse ETL | `labs/reverse-etl/` | Synced tables from Delta Lake |
-| Lakehouse Sync *(Beta)* | `labs/lakehouse-sync/` | Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only placeholder) |
+| Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero |
 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 | Authentication | `labs/authentication/` | OAuth tokens, roles, permissions |
@@ -253,14 +253,14 @@ For a guided workshop, direct participants to specific paths based on the timing
 3. Check sync status
 4. Key talking point: *"Your analytics lakehouse data, served at OLTP speed."*
 
-#### Lakehouse Sync — Lakebase → Delta *(Beta, UI walkthrough)*
+#### Lakehouse Sync — Lakebase → Delta *(Public Preview, UI walkthrough)*
 
-1. Confirm the **Lakehouse Sync** preview is enabled (workspace Previews page)
-2. From the Lakebase project UI, configure a sync from a `databricks_postgres` table to a Unity Catalog destination
+1. Confirm the **Lakebase Change Data Feed** preview is enabled (workspace Previews page)
+2. Set `REPLICA IDENTITY FULL` on the source table(s), then from the Lakebase project UI (Branch overview → **Change Data Feed** tab) start a feed from a `databricks_postgres` schema to a Unity Catalog destination
 3. Make a few row-level changes in Postgres (inserts / updates / deletes)
-4. Open the destination Delta table — show the SCD Type 2 history rows accumulating
-5. Key talking point: *"Lakebase moves data both ways natively — Reverse ETL pushes Delta in, Lakehouse Sync streams Postgres changes back out with full CDC history."*
-6. **Note:** This lab is a placeholder — the SDK/API is not yet GA, so the demo runs entirely from the workspace UI. See `labs/lakehouse-sync/README.md`.
+4. Open the destination `lb_<table>_history` Delta table — show the CDC rows accumulating (`_pg_change_type` = insert / update_preimage / update_postimage / delete)
+5. Key talking point: *"Lakebase moves data both ways natively — Reverse ETL pushes Delta in, Change Data Feed streams Postgres changes back out with full CDC history."*
+6. **Note:** Enablement is UI-configured (no create-API yet), so the demo runs from the workspace UI. Downstream consumption (materialized view / SDP / Structured Streaming) is fully runnable. See `labs/lakehouse-sync/README.md`.
 
 #### Online Feature Store
 

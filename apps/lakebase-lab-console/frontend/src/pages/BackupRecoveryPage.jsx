@@ -97,7 +97,7 @@ export default function BackupRecoveryPage() {
             </tr>
             <tr>
               <td><span className="badge badge-success">Point-in-Time Recovery</span></td>
-              <td>Restore to any second within the configured window (up to 35 days)</td>
+              <td>Restore to any second within the configured window (up to 30 days)</td>
               <td>Accidental data corruption or deletion</td>
             </tr>
             <tr>
@@ -275,7 +275,7 @@ w.postgres.create_branch(
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
           <div className="info-box info">
             <span style={{ fontWeight: 600 }}>Recovery Window:</span>
-            <span>Default 7 days, maximum 35 days. Configurable at the project level. You can recover to any second within the window.</span>
+            <span>Default 7 days, maximum 30 days. Configurable at the project level. You can recover to any second within the window.</span>
           </div>
         </div>
       </div>
@@ -304,7 +304,7 @@ w.postgres.create_branch(
             </tr>
             <tr>
               <td>Compliance / audit retention</td>
-              <td>Set PITR window to 35 days at the project level</td>
+              <td>Set the history window to its 30-day maximum at the project level</td>
             </tr>
             <tr>
               <td>Disaster recovery drill</td>

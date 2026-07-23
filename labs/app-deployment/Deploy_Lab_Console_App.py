@@ -396,8 +396,8 @@ print(f"\nEach call generates a fresh token. Cache them to avoid unnecessary API
 # MAGIC %md
 # MAGIC ## Deployment (Facilitator Only)
 # MAGIC
-# MAGIC The Lab Console is deployed once for the entire workshop via the
-# MAGIC Declarative Automation Bundle:
+# MAGIC The Lab Console is deployed once for the entire workshop via a
+# MAGIC Databricks Asset Bundle (DAB):
 # MAGIC
 # MAGIC ```bash
 # MAGIC # Build the frontend

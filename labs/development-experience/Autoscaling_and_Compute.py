@@ -4,7 +4,7 @@
 # MAGIC
 # MAGIC **Path:** Development Experience &nbsp;|&nbsp; **Prerequisite:** `00_Setup_Lakebase_Project`
 # MAGIC
-# MAGIC **Lakebase feature:** Autoscaling compute (0.5–112 CU), scale-to-zero
+# MAGIC **Lakebase feature:** Autoscaling compute (0.5–32 CU autoscaling; up to 112 CU fixed-size), scale-to-zero
 # MAGIC
 # MAGIC In this notebook you will:
 # MAGIC 1. Inspect your endpoint's current autoscaling configuration

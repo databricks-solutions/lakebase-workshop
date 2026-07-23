@@ -46,7 +46,7 @@ show_app_link("backup", "Backup & Recovery")
 # MAGIC | Feature | How It Works | Use Case |
 # MAGIC |---------|-------------|----------|
 # MAGIC | **Continuous WAL archival** | Write-ahead logs are continuously streamed to durable storage | Foundation for PITR |
-# MAGIC | **Point-in-Time Recovery** | Restore to any second within the configured window (up to 35 days) | Accidental data corruption or deletion |
+# MAGIC | **Point-in-Time Recovery** | Restore to any second within the configured window (up to 30 days) | Accidental data corruption or deletion |
 # MAGIC | **Branch snapshots** | Create a copy-on-write branch as a named checkpoint | Pre-migration safety net |
 # MAGIC | **Branch TTL** | Branches auto-delete after a configurable time | Dev/test cleanup |
 # MAGIC
@@ -76,6 +76,7 @@ try:
         branch=Branch(
             spec=BranchSpec(
                 source_branch=f"projects/{PROJECT_ID}/branches/production",
+                no_expiry=True,  # snapshots must be non-expiring: you can't create child branches from an expiring branch
             )
         ),
         branch_id=SNAPSHOT_BRANCH,
@@ -120,7 +121,7 @@ except Exception as e:
 # COMMAND ----------
 
 print("Waiting for work branch endpoint...")
-time.sleep(10)
+wait_for_endpoint(WORK_BRANCH)
 work_conn = get_connection(WORK_BRANCH)
 print("✓ Connected to work branch")
 
@@ -188,7 +189,7 @@ except Exception as e:
 # COMMAND ----------
 
 print("Waiting for recovery branch endpoint...")
-time.sleep(10)
+wait_for_endpoint(RECOVERY_BRANCH)
 recovery_conn = get_connection(RECOVERY_BRANCH)
 
 with recovery_conn.cursor() as cur:
@@ -242,8 +243,8 @@ recovery_conn.close()
 # MAGIC ### Recovery Window
 # MAGIC
 # MAGIC - Default: **7 days**
-# MAGIC - Maximum: **35 days**
-# MAGIC - Configurable at the project level
+# MAGIC - Maximum: **30 days**
+# MAGIC - Configurable at the project level (Project → Settings → History window)
 # MAGIC - You can recover to any **second** within the window
 
 # COMMAND ----------
@@ -256,7 +257,7 @@ recovery_conn.close()
 # MAGIC | **Before a schema migration** | Create a snapshot branch (instant, free until divergence) |
 # MAGIC | **Accidental DELETE/UPDATE** | PITR to the second before the mistake |
 # MAGIC | **Testing destructive operations** | Create a work branch, test there, delete when done |
-# MAGIC | **Compliance / audit retention** | Set PITR window to 35 days at the project level |
+# MAGIC | **Compliance / audit retention** | Set the history window to its 30-day maximum at the project level |
 # MAGIC | **Disaster recovery drill** | Periodically create a branch from PITR, verify data integrity |
 
 # COMMAND ----------
@@ -269,8 +270,10 @@ recovery_conn.close()
 # COMMAND ----------
 
 # UNCOMMENT TO CLEAN UP:
+# Delete child branches before their parent — RECOVERY_BRANCH is a child of
+# SNAPSHOT_BRANCH, and a branch with children cannot be deleted.
 # work_conn.close()
-# for branch in [WORK_BRANCH, SNAPSHOT_BRANCH, RECOVERY_BRANCH]:
+# for branch in [WORK_BRANCH, RECOVERY_BRANCH, SNAPSHOT_BRANCH]:
 #     try:
 #         w.postgres.delete_branch(name=f"projects/{PROJECT_ID}/branches/{branch}").wait()
 #         print(f"✓ Deleted {branch}")

@@ -10,7 +10,7 @@ Ordered from foundational to advanced:
 |---|------|--------|---------------------|
 | 1 | [Data Operations](data-operations/) | `data-operations/` | CRUD, JSONB, arrays, audit triggers, transactions, advanced SQL |
 | 2 | [Reverse ETL](reverse-etl/) | `reverse-etl/` | Sync Delta Lake tables into Lakebase for low-latency serving |
-| 3 | [Lakehouse Sync](lakehouse-sync/) *(Beta)* | `lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 history |
+| 3 | [Lakehouse Sync](lakehouse-sync/) *(Public Preview)* | `lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (CDC change history) |
 | 4 | [Development Experience](development-experience/) | `development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 | 5 | [Observability](observability/) | `observability/` | pg_stat views, index analysis, connection monitoring |
 | 6 | [Authentication](authentication/) | `authentication/` | OAuth tokens, two-layer permissions, role grants |
@@ -29,7 +29,7 @@ Foundation (00_Setup)
     ├── 1. Data Operations
     │       └── (recommended before) 5. Observability
     ├── 2. Reverse ETL
-    ├── 3. Lakehouse Sync (Beta — UI-only, no notebook yet)
+    ├── 3. Lakehouse Sync (Public Preview — UI-configured, no notebook yet)
     ├── 4. Development Experience
     ├── 6. Authentication
     ├── 7. Backup & Recovery
@@ -76,7 +76,7 @@ Pick a track based on your role, or mix and match across tracks. Every lab is in
 | Track | Who It's For | Labs (in recommended order) |
 |-------|-------------|----------------------------|
 | **Application Builders** | App developers, AI engineers | Data Operations → Agentic Memory → App Deployment |
-| **Data & ML Engineers** | Data engineers, ML teams | Reverse ETL → Lakehouse Sync *(Beta)* → Online Feature Store |
+| **Data & ML Engineers** | Data engineers, ML teams | Reverse ETL → Lakehouse Sync *(Public Preview)* → Online Feature Store |
 | **Platform Architects** | Central IT, infrastructure, security | Development Experience → Authentication → Backup & Recovery → Observability |
 
 ## Suggested Combinations
@@ -87,6 +87,6 @@ Pick a track based on your role, or mix and match across tracks. Every lab is in
 | **Data-focused (60 min)** | Data Operations → Observability |
 | **App builder (60 min)** | Data Operations → Agentic Memory → App Deployment |
 | **ML serving (45 min)** | Reverse ETL → Online Feature Store |
-| **Bi-directional sync (45 min)** | Reverse ETL → Lakehouse Sync *(Beta)* |
+| **Bi-directional sync (45 min)** | Reverse ETL → Lakehouse Sync *(Public Preview)* |
 | **Platform deep-dive (90 min)** | Development Experience → Authentication → Backup & Recovery → Observability |
 | **Full workshop (2.5 hours)** | All paths |

@@ -59,7 +59,7 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 | Lab | What You'll Do |
 |-----|----------------|
 | **Reverse ETL** | Sync your Delta Lake tables into Lakebase for fast lookups |
-| **Lakehouse Sync** *(Beta)* | Sync Lakebase back to the lakehouse as Delta with full CDC history |
+| **Lakehouse Sync** *(Public Preview)* | Sync Lakebase back to the lakehouse as Delta with full CDC change history |
 | **Online Feature Store** | Serve ML features in real time from Lakebase |
 
 ### Platform Architects
@@ -96,10 +96,21 @@ The setup notebook (Step 2 above) automatically grants the app access to your da
 
 ## Resources
 
-- [Lakebase Autoscaling Documentation](https://docs.databricks.com/aws/en/oltp/projects/)
+**Start here (canonical Lakebase docs):**
+- [What is Lakebase Autoscaling?](https://docs.databricks.com/aws/en/oltp/projects/about)
+- [Lakebase Autoscaling documentation (hub)](https://docs.databricks.com/aws/en/oltp/projects/)
 - [Get started with Lakebase](https://docs.databricks.com/aws/en/oltp/projects/get-started)
-- [Databricks Apps Documentation](https://docs.databricks.com/en/dev-tools/databricks-apps/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+
+**Feature docs (mapped to the labs):**
+- [Authentication](https://docs.databricks.com/aws/en/oltp/projects/authentication) · [Roles & permissions](https://docs.databricks.com/aws/en/oltp/projects/roles-permissions)
+- [Branches](https://docs.databricks.com/aws/en/oltp/projects/branches) · [Autoscaling](https://docs.databricks.com/aws/en/oltp/projects/autoscaling) · [Scale to zero](https://docs.databricks.com/aws/en/oltp/projects/scale-to-zero)
+- [Serve lakehouse data with synced tables (Reverse ETL)](https://docs.databricks.com/aws/en/oltp/projects/sync-tables) · [Lakebase Change Data Feed (Lakehouse Sync)](https://docs.databricks.com/aws/en/oltp/projects/lakehouse-sync)
+- [Point-in-time restore](https://docs.databricks.com/aws/en/oltp/projects/point-in-time-restore) · [Monitor](https://docs.databricks.com/aws/en/oltp/projects/monitor)
+- [Online Feature Store](https://docs.databricks.com/aws/en/machine-learning/feature-store/online-feature-store) · [Connect an application](https://docs.databricks.com/aws/en/oltp/projects/connect-application)
+
+**Reference:**
+- [Databricks Apps documentation](https://docs.databricks.com/en/dev-tools/databricks-apps/)
+- [PostgreSQL documentation](https://www.postgresql.org/docs/)
 
 ## For Facilitators
 

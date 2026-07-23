@@ -44,7 +44,7 @@
 # MAGIC | **Autoscaling Compute** | 0.5–112 CU (~1–224 GB RAM), scales based on load |
 # MAGIC | **Scale-to-Zero** | Non-production branches suspend after inactivity |
 # MAGIC | **Copy-on-Write Branching** | Instant isolated database clones for dev/test/CI |
-# MAGIC | **Point-in-Time Recovery** | Restore to any moment within the configured window (up to 35 days) |
+# MAGIC | **Point-in-Time Recovery** | Restore to any moment within the configured window (up to 30 days) |
 # MAGIC | **OAuth Authentication** | Token-based auth via Databricks SDK (1-hour token TTL) |
 # MAGIC | **Reverse ETL** | Sync Delta Lake tables into PostgreSQL via synced tables |
 # MAGIC | **Unity Catalog Integration** | Projects and access governed by workspace IAM |
@@ -59,7 +59,7 @@
 # MAGIC - **Delta Lake** stores your analytical data (OLAP)
 # MAGIC - **Lakebase** serves operational data at low latency (OLTP)
 # MAGIC - **Synced Tables** push lakehouse data into Lakebase for low-latency serving
-# MAGIC - **Lakehouse Sync** *(Beta)* streams Lakebase changes back into Delta with CDC + SCD Type 2
+# MAGIC - **Lakebase Change Data Feed** *(Public Preview)* streams Lakebase changes back into Delta as a CDC change history
 # MAGIC - **Databricks Apps**, **AI agents**, and **Feature Store** all connect to Lakebase as a backend
 # MAGIC
 # MAGIC *Source: [What is Lakebase Autoscaling?](https://docs.databricks.com/aws/en/oltp/projects/about)*
@@ -105,7 +105,7 @@ print(f"PG Schema:  {PG_SCHEMA}")
 # MAGIC %md
 # MAGIC ## Step 2: Create the Lakebase Project
 # MAGIC This creates the project and waits for the production endpoint to be ready.
-# MAGIC Takes 1-3 minutes.
+# MAGIC Typically takes 2-3 minutes (occasionally longer).
 
 # COMMAND ----------
 
@@ -334,7 +334,7 @@ print("  Lakebase project automatically.")
 # MAGIC |---|------|--------|-------------------|
 # MAGIC | 1 | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | 2 | **Reverse ETL** | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase for low-latency serving |
-# MAGIC | 3 | **Lakehouse Sync** *(Beta)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only) |
+# MAGIC | 3 | **Lakehouse Sync** *(Public Preview)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
 # MAGIC | 4 | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 # MAGIC | 5 | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
 # MAGIC | 6 | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |

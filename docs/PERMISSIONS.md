@@ -86,6 +86,26 @@ and Compute tabs work for any user who has completed the setup.
 
 ## Synced Table Permissions
 
-Synced tables (Reverse ETL) are created by the Lakebase sync pipeline. The SP
-needs access to the synced table's schema, which is covered by the schema-level
-grants in the setup notebook.
+Synced tables (Reverse ETL) are created by the Lakebase sync pipeline and are
+owned by the internal `databricks_writer_` role — **not** by the user who
+created them. Because of this, the ordinary schema-level `GRANT ALL ON ALL
+TABLES` in the setup notebook does **not** cover pipeline-owned synced tables.
+
+To give the app's SP read access to a synced table, the `databricks_superuser`
+must grant it explicitly:
+
+```sql
+GRANT USAGE ON SCHEMA <sync_schema> TO "<SP_CLIENT_ID>";
+GRANT SELECT ON <sync_schema>.<synced_table> TO "<SP_CLIENT_ID>";
+```
+
+For allowed management operations on a synced table (`CREATE/ALTER/DROP INDEX`,
+`DROP TABLE`), register the identity as a manager instead:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS databricks_auth;
+SELECT databricks_synced_table_add_manager(
+    '"<sync_schema>"."<synced_table>"'::regclass, '<SP_CLIENT_ID>');
+```
+
+See [Synced tables — Ownership and permissions](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#ownership-and-permissions).
