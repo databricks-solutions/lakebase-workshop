@@ -197,12 +197,12 @@ export default function AutoscaleDemo() {
         {ep.min_cu != null && (
           <div style={{ padding: '0 4px' }}>
             <div className="cu-gauge">
-              <div className="cu-gauge-fill" style={{ width: `${((ep.max_cu || 0) / 32) * 100}%` }} />
+              <div className="cu-gauge-fill" style={{ width: `${((ep.max_cu || 0) / 64) * 100}%` }} />
             </div>
             <div className="cu-gauge-labels">
               <span>0 CU</span>
               <span>{ep.min_cu}-{ep.max_cu} CU configured</span>
-              <span>32 CU max</span>
+              <span>64 CU max</span>
             </div>
           </div>
         )}

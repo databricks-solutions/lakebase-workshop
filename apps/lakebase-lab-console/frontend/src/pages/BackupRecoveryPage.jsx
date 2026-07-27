@@ -82,8 +82,10 @@ export default function BackupRecoveryPage() {
           <h3><Shield size={16} /> Backup Architecture</h3>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12, lineHeight: 1.6 }}>
-          Backups are always on. You do not need to configure them. Lakebase provides multiple
-          layers of data protection built into every project.
+          Backups are always on — you don't configure them, you just set the history window. Lakebase
+          provides multiple layers of data protection built into every project. Note that the storage
+          recovery uses <strong>is billed</strong> (as of Jun 1, 2026): primary data, PITR history, and
+          snapshots are three separate storage components, so a longer window and more snapshots cost more.
         </p>
         <table className="data-table">
           <thead>
@@ -250,7 +252,11 @@ export default function BackupRecoveryPage() {
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12, lineHeight: 1.6 }}>
           For production scenarios where you need to recover to an exact moment, Lakebase
-          supports PITR by replaying WAL segments to a target timestamp.
+          supports PITR by replaying WAL segments to a target timestamp. The documented path is the
+          <strong> Backup &amp; Restore</strong> flow in the Lakebase App, which provisions a
+          <strong> new root branch</strong> at the chosen point in time. A project can have at most
+          <strong> 3 root branches</strong>. Via the SDK, use the <code>source_branch_time</code> field
+          on <code>BranchSpec</code>.
         </p>
         <div className="code-block">{`from datetime import datetime, timezone, timedelta
 from databricks.sdk.service.postgres import Branch, BranchSpec
@@ -267,7 +273,7 @@ w.postgres.create_branch(
     branch=Branch(
         spec=BranchSpec(
             source_branch=f"projects/{PROJECT_ID}/branches/production",
-            parent_timestamp=ts,
+            source_branch_time=ts,
         )
     ),
     branch_id="pitr-recovery",

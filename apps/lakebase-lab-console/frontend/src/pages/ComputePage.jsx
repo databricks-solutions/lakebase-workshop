@@ -131,12 +131,12 @@ export default function ComputePage() {
               {ep.min_cu != null && (
                 <div>
                   <div className="cu-gauge">
-                    <div className="cu-gauge-fill" style={{ width: `${((ep.max_cu || 0) / 32) * 100}%` }} />
+                    <div className="cu-gauge-fill" style={{ width: `${((ep.max_cu || 0) / 64) * 100}%` }} />
                   </div>
                   <div className="cu-gauge-labels">
                     <span>0 CU</span>
                     <span>{ep.min_cu}-{ep.max_cu} CU</span>
-                    <span>32 CU</span>
+                    <span>64 CU</span>
                   </div>
                 </div>
               )}
@@ -160,8 +160,8 @@ export default function ComputePage() {
             </button>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
-            Autoscaling range: <strong>0.5-32 CU</strong>. The spread (max - min) cannot exceed <strong>8 CU</strong>.
-            Each CU provides ~2 GB RAM.
+            Autoscaling range: <strong>0.5-64 CU</strong>. The spread (max - min) cannot exceed <strong>16 CU</strong>.
+            Each CU provides ~2 GB RAM. (Computes above 64 CU are fixed-size.)
           </p>
           <form onSubmit={handleUpdate}>
             <div className="form-row">
@@ -171,12 +171,12 @@ export default function ComputePage() {
                   type="range"
                   step="0.5"
                   min="0"
-                  max="32"
+                  max="64"
                   value={editForm.min_cu}
                   onChange={(e) => setEditForm({ ...editForm, min_cu: parseFloat(e.target.value) })}
                 />
                 <div className="slider-labels">
-                  <span>0</span><span>8</span><span>16</span><span>24</span><span>32</span>
+                  <span>0</span><span>16</span><span>32</span><span>48</span><span>64</span>
                 </div>
               </div>
               <div className="form-group">
@@ -185,12 +185,12 @@ export default function ComputePage() {
                   type="range"
                   step="0.5"
                   min="0.5"
-                  max="32"
+                  max="64"
                   value={editForm.max_cu}
                   onChange={(e) => setEditForm({ ...editForm, max_cu: parseFloat(e.target.value) })}
                 />
                 <div className="slider-labels">
-                  <span>0.5</span><span>8</span><span>16</span><span>24</span><span>32</span>
+                  <span>0.5</span><span>16</span><span>32</span><span>48</span><span>64</span>
                 </div>
               </div>
             </div>
@@ -202,23 +202,23 @@ export default function ComputePage() {
                 <span className="td-mono">{editForm.min_cu}-{editForm.max_cu} CU &middot; {(editForm.min_cu * 2).toFixed(0)}-{(editForm.max_cu * 2).toFixed(0)} GB RAM</span>
               </div>
               <div className="cu-gauge">
-                <div className="cu-gauge-fill" style={{ width: `${((editForm.max_cu || 0) / 32) * 100}%`, marginLeft: `${((editForm.min_cu || 0) / 32) * 100}%` }} />
+                <div className="cu-gauge-fill" style={{ width: `${((editForm.max_cu || 0) / 64) * 100}%`, marginLeft: `${((editForm.min_cu || 0) / 64) * 100}%` }} />
               </div>
               <div className="cu-gauge-labels">
                 <span>0 CU</span>
-                <span>32 CU</span>
+                <span>64 CU</span>
               </div>
             </div>
 
-            {spread > 8 && (
+            {spread > 16 && (
               <div className="info-box danger" style={{ marginBottom: 12 }}>
                 <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                <span>Spread is {spread.toFixed(1)} CU (max allowed: 8 CU)</span>
+                <span>Spread is {spread.toFixed(1)} CU (max allowed: 16 CU)</span>
               </div>
             )}
 
             <div className="btn-row">
-              <button className="btn btn-primary" disabled={updating || spread > 8}>
+              <button className="btn btn-primary" disabled={updating || spread > 16}>
                 <Check size={14} />
                 {updating ? 'Updating...' : 'Apply Changes'}
               </button>
@@ -234,16 +234,20 @@ export default function ComputePage() {
         </div>
         <table className="data-table">
           <thead>
-            <tr><th>CU</th><th>RAM</th><th>Max Connections</th><th>Use Case</th></tr>
+            <tr><th>CU</th><th>RAM</th><th>Max Connections*</th><th>Use Case</th></tr>
           </thead>
           <tbody>
-            <tr><td><span className="badge badge-cyan">0.5</span></td><td>~1 GB</td><td>104</td><td>Dev/test, low traffic</td></tr>
-            <tr><td><span className="badge badge-info">4</span></td><td>~8 GB</td><td>839</td><td>Small production apps</td></tr>
-            <tr><td><span className="badge badge-purple">8</span></td><td>~16 GB</td><td>1,678</td><td>Medium production</td></tr>
-            <tr><td><span className="badge badge-warning">16</span></td><td>~32 GB</td><td>3,357</td><td>High-throughput apps</td></tr>
-            <tr><td><span className="badge badge-accent">32</span></td><td>~64 GB</td><td>4,000</td><td>Maximum autoscale</td></tr>
+            <tr><td><span className="badge badge-cyan">0.5</span></td><td>~1 GB</td><td>~104</td><td>Dev/test, low traffic</td></tr>
+            <tr><td><span className="badge badge-info">4</span></td><td>~8 GB</td><td>~839</td><td>Small production apps</td></tr>
+            <tr><td><span className="badge badge-purple">8</span></td><td>~16 GB</td><td>~1,678</td><td>Medium production</td></tr>
+            <tr><td><span className="badge badge-warning">16</span></td><td>~32 GB</td><td>~3,357</td><td>High-throughput apps</td></tr>
+            <tr><td><span className="badge badge-accent">32</span></td><td>~64 GB</td><td>~4,000</td><td>Large production</td></tr>
+            <tr><td><span className="badge badge-accent">64</span></td><td>~128 GB</td><td>—</td><td>Maximum autoscale</td></tr>
           </tbody>
         </table>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 10 }}>
+          *Connection counts are approximate and set by the compute size (up to ~10,000 per instance at the largest sizes). Autoscaling ranges up to 64 CU with a max−min spread ≤ 16 CU; computes above 64 CU are fixed-size.
+        </p>
       </div>
     </div>
   )

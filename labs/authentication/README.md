@@ -1,12 +1,12 @@
-# Authentication & Permissions
+# Authentication, Security & Compliance
 
-Understand Lakebase's two-layer security model: workspace-level IAM and database-level PostgreSQL roles.
+Understand Lakebase's security model end to end: workspace-level IAM, database-level PostgreSQL roles, and the platform's encryption, networking, and compliance posture.
 
 ## Labs
 
 | Lab | What You'll Learn |
 |-----|-------------------|
-| `Authentication_and_Permissions` | Generate OAuth tokens, inspect JWT claims, manage role grants, connect external tools |
+| `Authentication_and_Permissions` | Generate OAuth tokens, inspect JWT claims, manage role grants, connect external tools, and review encryption / Private Link / compliance |
 
 ## Prerequisites
 
@@ -16,7 +16,11 @@ Understand Lakebase's two-layer security model: workspace-level IAM and database
 
 - **Two-layer permissions** — Workspace IAM (who can access the project) + PostgreSQL roles (what they can do inside the database)
 - **OAuth tokens** — 1-hour TTL, no static passwords, automatic rotation via the SDK
-- **Role mapping** — Databricks identities map to PostgreSQL roles automatically
+- **Connection limits** — 24-hour idle timeout, 3-day max connection life; PgBouncer pooling requires password auth (not OAuth)
+- **Encryption** — TLS 1.2+ in transit, AES-256 at rest, per-project DEK/KEK envelope; **Customer-Managed Keys (CMK)** GA for Enterprise (new projects)
+- **Network isolation** — inbound **Private Link** (GA) for private connectivity
+- **Compliance** — HIPAA, C5, TISAX, SOC 2 Type 2 (tier/region dependent)
+- **Limitation** — no Postgres audit logs yet; use `pg_stat_statements` (Observability lab) + Databricks control-plane audit logs
 
 ## Documentation
 
@@ -24,3 +28,4 @@ Understand Lakebase's two-layer security model: workspace-level IAM and database
 - [Manage Postgres roles](https://docs.databricks.com/aws/en/oltp/projects/postgres-roles)
 - [Manage permissions](https://docs.databricks.com/aws/en/oltp/projects/manage-roles-permissions)
 - [Roles and permissions](https://docs.databricks.com/aws/en/oltp/projects/roles-permissions)
+- [Private Link](https://docs.databricks.com/aws/en/oltp/projects/private-link)

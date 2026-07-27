@@ -2,13 +2,15 @@
 
 ## Overview
 
-This guide helps facilitators run a Lakebase Autoscaling workshop. The workshop uses a **foundation + choose-your-track** model: participants complete a single setup notebook, then follow a track tailored to their role — or mix and match labs across tracks.
+This guide helps facilitators run a Lakebase workshop. The workshop uses a **foundation + choose-your-track** model: participants complete a single setup notebook, then follow a track tailored to their role — or mix and match labs across tracks.
+
+> **Naming:** Databricks has unified its managed Postgres under a single **Lakebase** offering (former "Provisioned" instances upgraded by Jul 31, 2026). This workshop is built on the **Autoscaling** API surface (`w.postgres.*`, the `oltp/projects` docs), so you'll still see "Autoscaling" in SDK calls and doc links — that's expected.
 
 ## Prerequisites Checklist
 
 Before the workshop:
 
-- [ ] Databricks workspace with Lakebase Autoscaling enabled
+- [ ] Databricks workspace with Lakebase enabled
 - [ ] Each participant has workspace access with permissions to create Lakebase projects
 - [ ] Python 3.11+ installed on each participant's machine
 - [ ] (Facilitator only) Node.js installed for building the Lab Console frontend
@@ -32,8 +34,10 @@ After the foundation, participants follow a track based on their role. Each trac
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
 | 1 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
-| 2 | Agentic Memory | `labs/agentic-memory/` | Persistent AI agent memory with sessions |
-| 3 | App Deployment *(capstone)* | `labs/app-deployment/` | Full-stack React + FastAPI Lab Console app |
+| 2 | Data API | `labs/data-api/` | PostgREST REST access, `authenticator` role, OAuth bearer, RLS |
+| 3 | Agentic Memory | `labs/agentic-memory/` | Persistent AI agent memory with sessions |
+| 4 | Lakebase Search *(Beta)* | `labs/lakebase-search/` | Vector + BM25 + hybrid RRF search (enablement is irreversible) |
+| 5 | App Deployment *(capstone)* | `labs/app-deployment/` | Full-stack React + FastAPI Lab Console app |
 
 **Key narrative:** *"Lakebase gives your applications a production-grade PostgreSQL backend inside the Lakehouse — no separate infrastructure, no bespoke sync pipelines."*
 
@@ -55,9 +59,9 @@ After the foundation, participants follow a track based on their role. Each trac
 
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
-| 1 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero |
-| 2 | Authentication | `labs/authentication/` | OAuth tokens, roles, two-layer permissions |
-| 3 | Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, instant restore |
+| 1 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
+| 2 | Authentication, Security & Compliance | `labs/authentication/` | OAuth tokens, roles, encryption/CMK, Private Link, compliance |
+| 3 | Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, instant restore, cross-region DR note |
 | 4 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 
 **Key narrative:** *"Fully managed PostgreSQL with Git-like branching, OAuth security, instant recovery, and native Postgres observability — all governed by Unity Catalog."*
@@ -69,13 +73,15 @@ Every lab lives directly in `labs/`. No track folder structure — tracks are a 
 | Lab | Location | What It Covers |
 |-----|----------|----------------|
 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
+| Data API | `labs/data-api/` | PostgREST REST access, `authenticator` role, OAuth bearer, RLS |
 | Reverse ETL | `labs/reverse-etl/` | Synced tables from Delta Lake |
 | Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
-| Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero |
+| Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
-| Authentication | `labs/authentication/` | OAuth tokens, roles, permissions |
-| Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, restore |
+| Authentication, Security & Compliance | `labs/authentication/` | OAuth tokens, roles, encryption/CMK, Private Link, compliance |
+| Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, restore, cross-region DR note |
 | Agentic Memory | `labs/agentic-memory/` | Persistent agent memory pattern |
+| Lakebase Search *(Beta)* | `labs/lakebase-search/` | Vector + BM25 + hybrid RRF search (enablement irreversible) |
 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
 | App Deployment | `labs/app-deployment/` | Full-stack Lab Console app (capstone) |
 
@@ -304,8 +310,8 @@ For a guided workshop, direct participants to specific paths based on the timing
 1. Create a snapshot branch (instant)
 2. Simulate disaster on a work branch (drop table)
 3. Recover by branching from the snapshot
-4. Explain PITR and the 35-day window
-5. Key talking point: *"Backups are always on. Recovery is instant via branching."*
+4. Explain PITR and the restore window (2–30 days, default 7)
+5. Key talking point: *"Backups are always on; you set the history window. Recovery is instant via branching — note snapshot storage is now a billed component."*
 
 #### Observability — Monitoring
 

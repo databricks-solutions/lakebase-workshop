@@ -75,7 +75,7 @@ export default function Dashboard({ onNavigate }) {
         <div className="page-header-row">
           <div>
             <h2>Dashboard</h2>
-            <p>Lakebase Autoscaling project overview and health</p>
+            <p>Lakebase project overview and health</p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
             <RefreshCw size={14} className={loading ? 'icon-spin' : ''} />

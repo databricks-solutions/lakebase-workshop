@@ -20,6 +20,17 @@
 # MAGIC **Run `00_Setup_Lakebase_Project` first** (the memory tables are created by the seed script in **your PostgreSQL schema**, resolved via `search_path` from `_setup`).
 # MAGIC
 # MAGIC **Docs:** [AI agent memory](https://docs.databricks.com/aws/en/generative-ai/agent-framework/stateful-agents)
+# MAGIC
+# MAGIC > ### DIY memory vs. Managed agent memory (Beta)
+# MAGIC > Databricks now offers **Managed agent memory** (Beta, announced Jun 23, 2026) — a
+# MAGIC > **Unity Catalog-governed** memory service that handles storage and retrieval for you,
+# MAGIC > with no schema to design or SQL to write.
+# MAGIC >
+# MAGIC > This lab teaches the **DIY Lakebase-backed pattern**: you own the schema and the queries.
+# MAGIC > Choose it when you need **custom memory schema, fine-grained retrieval logic, or the
+# MAGIC > lowest-latency reads/writes** co-located with your operational data. Reach for **Managed
+# MAGIC > agent memory** when you want a governed, zero-plumbing default. The two are complementary —
+# MAGIC > the concepts here (short-term vs. long-term, upsert, recall) apply to both.
 
 # COMMAND ----------
 

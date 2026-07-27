@@ -21,9 +21,14 @@
 # MAGIC %md
 # MAGIC ## Lakebase Architecture
 # MAGIC
-# MAGIC Lakebase Autoscaling is Databricks' fully managed **PostgreSQL** service
+# MAGIC Lakebase is Databricks' fully managed **PostgreSQL** service
 # MAGIC for operational (OLTP) workloads. It runs inside your Databricks workspace
 # MAGIC and is governed by Unity Catalog.
+# MAGIC
+# MAGIC > **It's all one Lakebase now.** Databricks has unified its managed Postgres under a single
+# MAGIC > **Lakebase** offering (the earlier "Provisioned" instances were upgraded to the unified
+# MAGIC > platform by Jul 31, 2026). You'll still see **"Autoscaling"** in doc URLs and the SDK
+# MAGIC > (`w.postgres.*`, the `oltp/projects` surface) — that's the API surface this workshop uses.
 # MAGIC
 # MAGIC ### Resource Hierarchy
 # MAGIC
@@ -31,7 +36,7 @@
 # MAGIC Databricks Workspace
 # MAGIC └── Lakebase Project (top-level container)
 # MAGIC     └── Branch(es) (isolated database environments, like Git branches)
-# MAGIC         ├── Compute Endpoint (autoscaling PostgreSQL server, 0.5–112 CU)
+# MAGIC         ├── Compute Endpoint (autoscaling PostgreSQL server, up to 64 CU)
 # MAGIC         ├── Database: databricks_postgres (default)
 # MAGIC         │   └── Schema(s) → Tables, indexes, triggers, functions
 # MAGIC         └── Roles (mapped to Databricks users / Service Principals)
@@ -41,13 +46,16 @@
 # MAGIC
 # MAGIC | Capability | Details |
 # MAGIC |------------|---------|
-# MAGIC | **Autoscaling Compute** | 0.5–112 CU (~1–224 GB RAM), scales based on load |
+# MAGIC | **Autoscaling Compute** | Autoscales up to 64 CU (~2 GB RAM/CU, max−min spread ≤ 16 CU); larger fixed-size computes above 64 CU |
 # MAGIC | **Scale-to-Zero** | Non-production branches suspend after inactivity |
 # MAGIC | **Copy-on-Write Branching** | Instant isolated database clones for dev/test/CI |
-# MAGIC | **Point-in-Time Recovery** | Restore to any moment within the configured window (up to 30 days) |
+# MAGIC | **Point-in-Time Recovery** | Restore to any moment within the configured window (2–30 days, default 7) |
 # MAGIC | **OAuth Authentication** | Token-based auth via Databricks SDK (1-hour token TTL) |
-# MAGIC | **Reverse ETL** | Sync Delta Lake tables into PostgreSQL via synced tables |
+# MAGIC | **Synced Tables** | Sync Unity Catalog Delta tables into Postgres for low-latency serving |
 # MAGIC | **Unity Catalog Integration** | Projects and access governed by workspace IAM |
+# MAGIC
+# MAGIC > **Postgres version:** this workshop provisions **PostgreSQL 17** (the current default).
+# MAGIC > **PostgreSQL 18 is also supported** — set `pg_version="18"` at create time if you want it.
 # MAGIC
 # MAGIC **Docs:** [What is Lakebase Autoscaling?](https://docs.databricks.com/aws/en/oltp/projects/about) |
 # MAGIC [Get started with Lakebase](https://docs.databricks.com/aws/en/oltp/projects/get-started)
@@ -94,7 +102,7 @@ def sanitize(email):
 
 PROJECT_ID = f"lakebase-lab-{sanitize(user_email)}"
 PG_SCHEMA  = f"lakebase_lab_{sanitize(user_email).replace('-', '_')}"
-PG_VERSION = "17"
+PG_VERSION = "17"  # 17 is the current default; "18" is also supported
 
 print(f"User:       {user_email}")
 print(f"Project ID: {PROJECT_ID}")

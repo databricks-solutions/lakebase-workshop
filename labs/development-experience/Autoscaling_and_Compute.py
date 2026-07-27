@@ -4,7 +4,7 @@
 # MAGIC
 # MAGIC **Path:** Development Experience &nbsp;|&nbsp; **Prerequisite:** `00_Setup_Lakebase_Project`
 # MAGIC
-# MAGIC **Lakebase feature:** Autoscaling compute (0.5–32 CU autoscaling; up to 112 CU fixed-size), scale-to-zero
+# MAGIC **Lakebase feature:** Autoscaling compute (autoscaling up to 64 CU with a max−min spread ≤ 16 CU; larger fixed-size computes above 64 CU), scale-to-zero
 # MAGIC
 # MAGIC In this notebook you will:
 # MAGIC 1. Inspect your endpoint's current autoscaling configuration
@@ -63,17 +63,25 @@ for ep_summary in endpoints:
 # MAGIC %md
 # MAGIC ## 2. CU Sizing Reference
 # MAGIC
-# MAGIC | CU | RAM | Max Connections | Use Case |
-# MAGIC |----|-----|-----------------|----------|
-# MAGIC | 0.5 | ~1 GB | 104 | Dev/test, minimal traffic |
-# MAGIC | 1 | ~2 GB | 209 | Light workloads |
-# MAGIC | 4 | ~8 GB | 839 | Small production apps |
-# MAGIC | 8 | ~16 GB | 1,678 | Medium production |
-# MAGIC | 16 | ~32 GB | 3,357 | High-throughput apps |
-# MAGIC | 32 | ~64 GB | 4,000 | Maximum autoscale |
+# MAGIC A **CU (Compute Unit)** provides **~2 GB of RAM** and a proportional amount of CPU.
+# MAGIC Max connections grow with CU size (up to ~10,000 per instance at the largest sizes).
 # MAGIC
-# MAGIC **Key constraint:** The autoscaling spread (max - min) cannot exceed **8 CU**.
-# MAGIC For example: 4–8 CU is valid, but 0.5–32 CU is not.
+# MAGIC | CU | RAM | Max Connections* | Use Case |
+# MAGIC |----|-----|-----------------|----------|
+# MAGIC | 0.5 | ~1 GB | ~104 | Dev/test, minimal traffic |
+# MAGIC | 1 | ~2 GB | ~209 | Light workloads |
+# MAGIC | 4 | ~8 GB | ~839 | Small production apps |
+# MAGIC | 8 | ~16 GB | ~1,678 | Medium production |
+# MAGIC | 16 | ~32 GB | ~3,357 | High-throughput apps |
+# MAGIC | 32 | ~64 GB | ~4,000 | Large production |
+# MAGIC | 64 | ~128 GB | — | **Maximum autoscale** |
+# MAGIC
+# MAGIC \*Connection counts are approximate and set by the compute size; confirm the current value in the Lakebase UI.
+# MAGIC
+# MAGIC **Key constraints** (per the [Autoscaling doc](https://docs.databricks.com/aws/en/oltp/projects/autoscaling)):
+# MAGIC - Autoscaling ranges up to **64 CU**; the spread `max − min` cannot exceed **16 CU** (e.g. 2–8 CU or 8–24 CU are valid; 0.5–64 CU is not).
+# MAGIC - Computes **larger than 64 CU are fixed-size** (non-autoscaling).
+# MAGIC - **Autoscaling + High Availability:** all compute instances share one autoscaling range, secondaries scale to at least the primary's size, and **scale-to-zero is not available** on HA. See `High_Availability_and_Replicas` in this path.
 
 # COMMAND ----------
 

@@ -1,10 +1,14 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Reverse ETL (Synced Tables)
+# MAGIC # Synced Tables (Reverse ETL)
 # MAGIC
 # MAGIC **Path:** Reverse ETL &nbsp;|&nbsp; **Prerequisite:** `00_Setup_Lakebase_Project`
 # MAGIC
-# MAGIC **Lakebase feature:** Sync Delta Lake tables into Lakebase PostgreSQL
+# MAGIC **Lakebase feature:** **Synced tables** — serve Unity Catalog Delta data from Lakebase Postgres
+# MAGIC
+# MAGIC > **Terminology:** the current product term is **"synced tables"** (serving lakehouse data from
+# MAGIC > Lakebase). You'll still hear "Reverse ETL" informally — that's what the folder is named — but
+# MAGIC > prefer "synced tables" to match the docs and UI.
 # MAGIC
 # MAGIC In this notebook you will:
 # MAGIC 1. Set up a Delta source table (use your own data or generate sample data)
@@ -173,6 +177,10 @@ display(spark.sql(f"SELECT * FROM {SOURCE_TABLE}"))
 # MAGIC Each synced table uses up to 16 connections to your Lakebase database. Total logical
 # MAGIC data size limit across all synced tables is 16 TB. Databricks recommends individual
 # MAGIC tables not exceed 1 TB for tables requiring refreshes.
+# MAGIC
+# MAGIC > **16 TB is the synced-table quota specifically** — the combined logical size of all synced
+# MAGIC > tables. It is *separate* from your project's overall Postgres storage capacity (the default
+# MAGIC > project storage limit is larger and has been increasing). Don't conflate the two.
 # MAGIC
 # MAGIC > **Docs:** [Sync modes](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#sync-modes)
 # MAGIC > &nbsp;|&nbsp; [Schedule syncs with Lakeflow Jobs](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#schedule-or-trigger-subsequent-syncs)

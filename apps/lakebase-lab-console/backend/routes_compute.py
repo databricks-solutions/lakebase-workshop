@@ -30,8 +30,8 @@ class EndpointInfo(BaseModel):
 
 
 class UpdateComputeRequest(BaseModel):
-    min_cu: float = Field(..., ge=0.5, le=32)
-    max_cu: float = Field(..., ge=0.5, le=32)
+    min_cu: float = Field(..., ge=0.5, le=64)
+    max_cu: float = Field(..., ge=0.5, le=64)
 
 
 @router.get("/{branch_id}", response_model=list[EndpointInfo])

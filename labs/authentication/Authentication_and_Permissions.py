@@ -1,17 +1,18 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Authentication & Permissions
+# MAGIC # Authentication, Security & Compliance
 # MAGIC
-# MAGIC **Path:** Authentication &nbsp;|&nbsp; **Prerequisite:** `00_Setup_Lakebase_Project`
+# MAGIC **Path:** Authentication, Security & Compliance &nbsp;|&nbsp; **Prerequisite:** `00_Setup_Lakebase_Project`
 # MAGIC
-# MAGIC **Lakebase features:** OAuth token auth, two-layer permission model, role grants
+# MAGIC **Lakebase features:** OAuth token auth, two-layer permission model, role grants, encryption/CMK, Private Link, compliance
 # MAGIC
 # MAGIC In this notebook you will:
 # MAGIC 1. Understand the two-layer permission model (workspace vs. database)
 # MAGIC 2. Generate and inspect an OAuth database credential
-# MAGIC 3. Explore token lifecycle (1-hour expiry, refresh patterns)
+# MAGIC 3. Explore token lifecycle (1-hour expiry, refresh patterns) and connection limits
 # MAGIC 4. Grant permissions to other users and Service Principals
 # MAGIC 5. Learn how to connect with external tools (psql, DBeaver)
+# MAGIC 6. Review the **security & compliance** posture: encryption/CMK, Private Link, TLS, compliance profiles
 # MAGIC
 # MAGIC **Run `00_Setup_Lakebase_Project` first.**
 
@@ -61,6 +62,14 @@ show_app_link("auth", "Auth & Permissions")
 # MAGIC authentication. Tokens are generated via the Databricks SDK and have
 # MAGIC a **1-hour TTL**. Open connections remain active even after token expiry —
 # MAGIC expiration is only enforced at login.
+# MAGIC
+# MAGIC > **Connection limits (all auth methods):** connections idle for **24 hours** are closed, and
+# MAGIC > any connection alive for more than **3 days** may be closed — design for graceful reconnect.
+# MAGIC >
+# MAGIC > **OAuth vs. pooling:** the built-in **PgBouncer** pooler does **not** support OAuth — use a
+# MAGIC > native **Postgres password** role for PgBouncer-pooled connections (password connections are
+# MAGIC > **disabled by default** on new projects; enable them if needed). Client-side pools that mint a
+# MAGIC > fresh token per connection (below) work fine with OAuth.
 # MAGIC
 # MAGIC **Docs:** [Authentication](https://docs.databricks.com/aws/en/oltp/projects/authentication)
 
@@ -140,6 +149,7 @@ if len(parts) >= 2:
 # MAGIC ```python
 # MAGIC from databricks.sdk import WorkspaceClient
 # MAGIC from sqlalchemy import create_engine, event
+# MAGIC from datetime import datetime, timezone
 # MAGIC import time
 # MAGIC
 # MAGIC w = WorkspaceClient()
@@ -155,9 +165,17 @@ if len(parts) >= 2:
 # MAGIC     if postgres_password is None or time.time() >= token_expiry - 120:
 # MAGIC         credential = w.postgres.generate_database_credential(endpoint=endpoint)
 # MAGIC         postgres_password = credential.token
-# MAGIC         token_expiry = credential.expire_time.seconds
+# MAGIC         # expire_time is an ISO-8601 timestamp string (e.g. "2026-01-22T17:07:00Z"),
+# MAGIC         # not a protobuf with `.seconds` — parse it to epoch seconds.
+# MAGIC         token_expiry = datetime.fromisoformat(
+# MAGIC             str(credential.expire_time).replace("Z", "+00:00")
+# MAGIC         ).timestamp()
 # MAGIC     cparams["password"] = postgres_password
 # MAGIC ```
+# MAGIC
+# MAGIC > **Simplest safe pattern:** rather than tracking expiry, mint a **fresh token per new
+# MAGIC > connection** (as the psycopg3 `CustomConnection` above does). That avoids parsing `expire_time`
+# MAGIC > entirely and is the pattern the docs lead with.
 # MAGIC
 # MAGIC **Docs:** [Token rotation examples](https://docs.databricks.com/aws/en/oltp/projects/authentication#token-rotation-examples)
 
@@ -324,6 +342,58 @@ conn.close()
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 6. Security & Compliance
+# MAGIC
+# MAGIC Authentication is one part of a broader security posture. Here's what Lakebase provides at the
+# MAGIC platform level (most of this is configured by admins / at project creation — *walkthrough*, with
+# MAGIC one runnable TLS check below).
+# MAGIC
+# MAGIC ### Encryption
+# MAGIC
+# MAGIC | Layer | What Lakebase does |
+# MAGIC |-------|--------------------|
+# MAGIC | **In transit** | **TLS 1.2+** required on every connection (`sslmode=require`). |
+# MAGIC | **At rest** | **AES-256**. Each project has a data encryption key (DEK) wrapped by a key-encryption key (KEK) — envelope encryption. |
+# MAGIC | **Customer-Managed Keys (CMK)** | **GA** (Enterprise tier, **new projects only**): bring your own key from your cloud KMS to control the at-rest KEK. |
+# MAGIC
+# MAGIC ### Network isolation — Private Link
+# MAGIC
+# MAGIC **Inbound Private Link is GA.** For enterprise/private networking you connect over Private Link
+# MAGIC instead of the public internet — this typically uses **two endpoints**: one for **API access** and
+# MAGIC one for **Postgres connections**. See the Connection Methods table in `labs/README.md`.
+# MAGIC
+# MAGIC ### Compliance profiles
+# MAGIC
+# MAGIC Lakebase supports compliance-oriented deployments including **HIPAA, C5, TISAX, and SOC 2 Type 2**.
+# MAGIC Availability depends on tier and region — confirm with your account team for your workspace.
+# MAGIC
+# MAGIC ### Known limitation: no Postgres audit logs yet
+# MAGIC
+# MAGIC There is **no Postgres-level audit-log feature** today. For query-level visibility, use
+# MAGIC **`pg_stat_statements`** (see the **Observability** lab). Control-plane actions (create/delete
+# MAGIC project, branch, compute) are captured in **Databricks audit logs**.
+# MAGIC
+# MAGIC ### Related: the Data API is *not* UC-governed
+# MAGIC
+# MAGIC If you expose data over the **Data API** (`labs/data-api/`), remember it enforces security with
+# MAGIC **Postgres roles + row-level security**, not Unity Catalog — enable RLS on every exposed table.
+
+# COMMAND ----------
+
+# Runnable check: confirm this connection is encrypted with TLS.
+_c = get_connection("production")
+with _c.cursor() as cur:
+    cur.execute("SELECT ssl, version AS tls_version, cipher FROM pg_stat_ssl WHERE pid = pg_backend_pid()")
+    row = cur.fetchone()
+    if row:
+        print(f"SSL in use:   {row['ssl']}")
+        print(f"TLS version:  {row['tls_version']}")
+        print(f"Cipher:       {row['cipher']}")
+_c.close()
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## What's Next?
 # MAGIC
 # MAGIC Continue to another lab path:
@@ -332,7 +402,8 @@ conn.close()
 # MAGIC |------|--------|-------------------|
 # MAGIC | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | **Reverse ETL** | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase for low-latency serving |
-# MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
+# MAGIC | **Development Experience** | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
+# MAGIC | **Data API** | `labs/data-api/` | REST access with the `authenticator` role, OAuth bearer tokens, and RLS |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
 # MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Point-in-time recovery, branch snapshots, instant restore |
 # MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
