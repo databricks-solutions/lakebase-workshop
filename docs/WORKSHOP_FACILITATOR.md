@@ -401,15 +401,20 @@ Lakebase-Workshop/
 ├── labs/                                       # Lab paths (pick your adventure)
 │   ├── _setup.py                               # Shared setup (auto-loaded by each lab)
 │   ├── README.md                               # Path index
-│   ├── development-experience/                 # Branching + Autoscaling
+│   ├── development-experience/                 # Branching + Autoscaling + HA
 │   │   ├── Branches_and_Environments.py
-│   │   └── Autoscaling_and_Compute.py
+│   │   ├── Autoscaling_and_Compute.py
+│   │   └── High_Availability_and_Replicas.py
 │   ├── data-operations/                        # CRUD, JSONB, Advanced SQL
 │   │   ├── Data_Operations.py
 │   │   └── Advanced_Postgres.sql
+│   ├── data-api/                               # Data API (PostgREST)
+│   │   └── Data_API.py
+│   ├── lakebase-search/                        # Vector, keyword & hybrid search (Beta)
+│   │   └── Lakebase_Search.py
 │   ├── reverse-etl/                            # Synced tables from Delta
 │   │   └── Reverse_ETL.py
-│   ├── lakehouse-sync/                         # Lakebase → Delta CDC (Beta, UI-only placeholder)
+│   ├── lakehouse-sync/                         # Lakebase → Delta CDC / Change Data Feed (Public Preview)
 │   │   └── README.md
 │   ├── observability/                          # pg_stat views, monitoring
 │   │   └── Observability_and_Monitoring.py
@@ -417,7 +422,7 @@ Lakebase-Workshop/
 │   │   └── Backup_and_Recovery.py
 │   ├── agentic-memory/                         # Agent memory pattern
 │   │   └── Agent_Memory.py
-│   ├── authentication/                         # OAuth, roles, permissions
+│   ├── authentication/                         # OAuth, roles, security & compliance
 │   │   └── Authentication_and_Permissions.py
 │   ├── online-feature-store/                   # Online Feature Store (ML serving)
 │   │   └── Online_Feature_Store.py
