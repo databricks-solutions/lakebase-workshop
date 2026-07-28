@@ -21,12 +21,33 @@ class EndpointInfo(BaseModel):
     endpoint_type: str | None = None
     state: str | None = None
     host: str | None = None
+    read_only_host: str | None = None
     min_cu: float | None = None
     max_cu: float | None = None
     scale_to_zero_seconds: int | None = None
     db_active_connections: int | None = None
     db_cache_hit_ratio: float | None = None
     db_total_transactions: int | None = None
+
+
+class TopologyInfo(BaseModel):
+    branch_id: str
+    endpoint_id: str | None = None
+    endpoint_type: str | None = None
+    is_primary: bool = False
+    state: str | None = None
+    host: str | None = None
+    read_only_host: str | None = None
+    min_cu: float | None = None
+    max_cu: float | None = None
+
+
+class TopologyResponse(BaseModel):
+    branch_id: str
+    primary_count: int = 0
+    read_replica_count: int = 0
+    has_read_routing: bool = False
+    endpoints: list[TopologyInfo] = []
 
 
 class UpdateComputeRequest(BaseModel):
@@ -64,6 +85,58 @@ def list_endpoints(branch_id: str, user: UserContext = Depends(get_current_user)
             db_total_transactions=db_metrics.get("total_transactions"),
         ))
     return result
+
+
+@router.get("/topology/{branch_id}", response_model=TopologyResponse)
+def get_topology(branch_id: str, user: UserContext = Depends(get_current_user)):
+    """Inspect the compute topology for a branch: primary + read replicas.
+
+    High availability and read replicas are configured from the Lakebase UI
+    (no SDK enablement path), so this endpoint is read-only inspection: it lists
+    every endpoint, classifies primary vs read-replica, and reports whether the
+    primary exposes a separate read-only host for read routing.
+    """
+    w = _get_client()
+    pid = get_project_id(user)
+    endpoints = list(
+        w.postgres.list_endpoints(parent=f"projects/{pid}/branches/{branch_id}")
+    )
+
+    rows: list[TopologyInfo] = []
+    primary_count = 0
+    replica_count = 0
+    has_read_routing = False
+    for ep in endpoints:
+        detail = w.postgres.get_endpoint(name=ep.name)
+        s = detail.status
+        ep_type = str(getattr(s, "endpoint_type", "")) if s else ""
+        is_primary = "READ_WRITE" in ep_type
+        ro_host = getattr(s.hosts, "read_only_host", None) if s and s.hosts else None
+        if is_primary:
+            primary_count += 1
+        elif "READ_ONLY" in ep_type:
+            replica_count += 1
+        if ro_host:
+            has_read_routing = True
+        rows.append(TopologyInfo(
+            branch_id=branch_id,
+            endpoint_id=getattr(s, "endpoint_id", None) if s else (detail.name.split("/")[-1] if detail.name else None),
+            endpoint_type=ep_type or None,
+            is_primary=is_primary,
+            state=str(getattr(s, "current_state", "")) if s else None,
+            host=getattr(s.hosts, "host", None) if s and s.hosts else None,
+            read_only_host=ro_host,
+            min_cu=getattr(s, "autoscaling_limit_min_cu", None) if s else None,
+            max_cu=getattr(s, "autoscaling_limit_max_cu", None) if s else None,
+        ))
+
+    return TopologyResponse(
+        branch_id=branch_id,
+        primary_count=primary_count,
+        read_replica_count=replica_count,
+        has_read_routing=has_read_routing,
+        endpoints=rows,
+    )
 
 
 @router.patch("/{branch_id}/{endpoint_id}", response_model=EndpointInfo)

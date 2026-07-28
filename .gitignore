@@ -24,6 +24,8 @@ Thumbs.db
 .databricks/
 .bundle/
 
+.cursor/
+
 *.log
 
 DESIGN.md

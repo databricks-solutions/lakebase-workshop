@@ -89,6 +89,29 @@ def list_grants(user: UserContext = Depends(get_current_user)):
         raise HTTPException(500, f"Failed to list grants: {e}")
 
 
+@router.get("/tls")
+def tls_status(user: UserContext = Depends(get_current_user)):
+    """Report the live TLS status of this connection (pg_stat_ssl).
+
+    Guarded: returns ssl=False with a note if the view is unavailable rather
+    than raising, so the Security & Compliance panel always renders.
+    """
+    try:
+        rows = execute_query(
+            user,
+            """
+            SELECT ssl, version, cipher, bits
+            FROM pg_stat_ssl
+            WHERE pid = pg_backend_pid()
+            """,
+        )
+        if rows:
+            return rows[0]
+        return {"ssl": False, "note": "No pg_stat_ssl row for this backend"}
+    except Exception as e:
+        return {"ssl": None, "note": f"TLS status unavailable: {e}"}
+
+
 @router.get("/connection-info")
 def connection_info(user: UserContext = Depends(get_current_user)):
     """Return connection details for external tools."""

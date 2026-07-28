@@ -25,10 +25,12 @@ from backend.routes_agent import router as agent_router
 from backend.routes_observability import router as observability_router
 from backend.routes_online_tables import router as online_tables_router
 from backend.routes_auth import router as auth_router
+from backend.routes_data_api import router as data_api_router
+from backend.routes_search import router as search_router
 
 app = FastAPI(
     title="Lakebase Lab Console",
-    description="Interactive workshop app for exploring Databricks Lakebase Autoscaling",
+    description="Interactive workshop app for exploring Databricks Lakebase",
     version="2.0.0",
 )
 
@@ -48,6 +50,8 @@ app.include_router(agent_router)
 app.include_router(observability_router)
 app.include_router(online_tables_router)
 app.include_router(auth_router)
+app.include_router(data_api_router)
+app.include_router(search_router)
 
 STATIC_DIR = Path(__file__).parent / "frontend" / "dist"
 

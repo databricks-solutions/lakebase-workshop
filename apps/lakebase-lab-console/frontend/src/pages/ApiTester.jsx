@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Terminal, Play, Clock, AlertCircle, Check } from '../icons'
+import { Terminal, Play, Clock, AlertCircle, Check, Server, Database } from '../icons'
+import DataApiPanel from './DataApiPanel'
 
 const PRESETS = [
   { label: 'Health Check', method: 'GET', path: '/api/health' },
@@ -14,7 +15,7 @@ const PRESETS = [
   { label: 'Create Product', method: 'POST', path: '/api/data/products', body: { name: 'Test Product', price: 9.99, category: 'General', stock_quantity: 10 } },
 ]
 
-export default function ApiTester() {
+function ConsolePanel() {
   const [method, setMethod] = useState('GET')
   const [path, setPath] = useState('/api/health')
   const [body, setBody] = useState('')
@@ -58,14 +59,11 @@ export default function ApiTester() {
   }
 
   return (
-    <div>
-      <div className="page-header">
-        <h2>API Tester</h2>
-        <p>
-          Exercise the Lab Console's FastAPI routes directly from the browser.
-          Useful for debugging and understanding the Lakebase integration.
-        </p>
-      </div>
+    <>
+      <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
+        Exercise the Lab Console's own FastAPI routes directly from the browser using the app session.
+        Useful for debugging and understanding the Lakebase integration.
+      </p>
 
       <div className="card">
         <div className="card-header">
@@ -134,6 +132,42 @@ export default function ApiTester() {
           </div>
         </div>
       )}
+    </>
+  )
+}
+
+const TARGETS = [
+  { id: 'console', label: 'Console API', Icon: Server },
+  { id: 'dataapi', label: 'Data API', Icon: Database },
+]
+
+export default function ApiTester() {
+  const [target, setTarget] = useState('console')
+
+  return (
+    <div>
+      <div className="page-header">
+        <h2>API Tester</h2>
+        <p>
+          Send requests to two different surfaces: the <strong>Console API</strong> (the Lab Console's
+          own FastAPI backend) or the external <strong>Data API</strong> (Lakebase PostgREST, called as
+          the app Service Principal).
+        </p>
+      </div>
+
+      <div className="btn-row" style={{ marginBottom: 16 }}>
+        {TARGETS.map((t) => (
+          <button
+            key={t.id}
+            className={`btn btn-sm ${target === t.id ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setTarget(t.id)}
+          >
+            <t.Icon size={14} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {target === 'console' ? <ConsolePanel /> : <DataApiPanel />}
     </div>
   )
 }
