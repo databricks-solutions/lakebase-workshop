@@ -27,6 +27,7 @@ export const api = {
 
   // Compute
   listEndpoints: (branchId) => request(`/api/compute/${branchId}`),
+  computeTopology: (branchId) => request(`/api/compute/topology/${branchId}`),
   updateCompute: (branchId, endpointId, data) =>
     request(`/api/compute/${branchId}/${endpointId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
@@ -84,6 +85,17 @@ export const api = {
   authRoles: () => request('/api/auth/roles'),
   authGrants: () => request('/api/auth/grants'),
   authConnectionInfo: () => request('/api/auth/connection-info'),
+  authTls: () => request('/api/auth/tls'),
+
+  // Data API (PostgREST)
+  dataApiStatus: () => request('/api/data-api/status'),
+  dataApiPrepare: () => request('/api/data-api/prepare', { method: 'POST' }),
+  dataApiCall: (data) => request('/api/data-api/call', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Lakebase Search
+  searchStatus: () => request('/api/search/status'),
+  searchSeed: () => request('/api/search/seed', { method: 'POST' }),
+  searchQuery: (data) => request('/api/search/query', { method: 'POST', body: JSON.stringify(data) }),
 
   // Generic (for API tester)
   raw: (method, path, body) =>

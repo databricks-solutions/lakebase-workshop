@@ -2,13 +2,15 @@
 
 ## Overview
 
-This guide helps facilitators run a Lakebase Autoscaling workshop. The workshop uses a **foundation + choose-your-track** model: participants complete a single setup notebook, then follow a track tailored to their role — or mix and match labs across tracks.
+This guide helps facilitators run a Lakebase workshop. The workshop uses a **foundation + choose-your-track** model: participants complete a single setup notebook, then follow a track tailored to their role — or mix and match labs across tracks.
+
+> **Naming:** Databricks has unified its managed Postgres under a single **Lakebase** offering (former "Provisioned" instances upgraded by Jul 31, 2026). This workshop is built on the **Autoscaling** API surface (`w.postgres.*`, the `oltp/projects` docs), so you'll still see "Autoscaling" in SDK calls and doc links — that's expected.
 
 ## Prerequisites Checklist
 
 Before the workshop:
 
-- [ ] Databricks workspace with Lakebase Autoscaling enabled
+- [ ] Databricks workspace with Lakebase enabled
 - [ ] Each participant has workspace access with permissions to create Lakebase projects
 - [ ] Python 3.11+ installed on each participant's machine
 - [ ] (Facilitator only) Node.js installed for building the Lab Console frontend
@@ -32,8 +34,10 @@ After the foundation, participants follow a track based on their role. Each trac
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
 | 1 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
-| 2 | Agentic Memory | `labs/agentic-memory/` | Persistent AI agent memory with sessions |
-| 3 | App Deployment *(capstone)* | `labs/app-deployment/` | Full-stack React + FastAPI Lab Console app |
+| 2 | Data API | `labs/data-api/` | PostgREST REST access, `authenticator` role, OAuth bearer, RLS |
+| 3 | Agentic Memory | `labs/agentic-memory/` | Persistent AI agent memory with sessions |
+| 4 | Lakebase Search *(Beta)* | `labs/lakebase-search/` | Vector + BM25 + hybrid RRF search (enablement is irreversible) |
+| 5 | App Deployment *(capstone)* | `labs/app-deployment/` | Full-stack React + FastAPI Lab Console app |
 
 **Key narrative:** *"Lakebase gives your applications a production-grade PostgreSQL backend inside the Lakehouse — no separate infrastructure, no bespoke sync pipelines."*
 
@@ -44,7 +48,7 @@ After the foundation, participants follow a track based on their role. Each trac
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
 | 1 | Reverse ETL | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase |
-| 2 | Lakehouse Sync *(Beta)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only placeholder) |
+| 2 | Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
 | 3 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
 
 **Key narrative:** *"Move data both ways between Lakebase and the Lakehouse natively — and use Lakebase as the online feature store."*
@@ -55,9 +59,9 @@ After the foundation, participants follow a track based on their role. Each trac
 
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
-| 1 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero |
-| 2 | Authentication | `labs/authentication/` | OAuth tokens, roles, two-layer permissions |
-| 3 | Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, instant restore |
+| 1 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
+| 2 | Authentication, Security & Compliance | `labs/authentication/` | OAuth tokens, roles, encryption/CMK, Private Link, compliance |
+| 3 | Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, instant restore, cross-region DR note |
 | 4 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 
 **Key narrative:** *"Fully managed PostgreSQL with Git-like branching, OAuth security, instant recovery, and native Postgres observability — all governed by Unity Catalog."*
@@ -69,13 +73,15 @@ Every lab lives directly in `labs/`. No track folder structure — tracks are a 
 | Lab | Location | What It Covers |
 |-----|----------|----------------|
 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
+| Data API | `labs/data-api/` | PostgREST REST access, `authenticator` role, OAuth bearer, RLS |
 | Reverse ETL | `labs/reverse-etl/` | Synced tables from Delta Lake |
-| Lakehouse Sync *(Beta)* | `labs/lakehouse-sync/` | Lakebase → Unity Catalog Delta with CDC + SCD Type 2 (UI-only placeholder) |
-| Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero |
+| Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
+| Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
-| Authentication | `labs/authentication/` | OAuth tokens, roles, permissions |
-| Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, restore |
+| Authentication, Security & Compliance | `labs/authentication/` | OAuth tokens, roles, encryption/CMK, Private Link, compliance |
+| Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, restore, cross-region DR note |
 | Agentic Memory | `labs/agentic-memory/` | Persistent agent memory pattern |
+| Lakebase Search *(Beta)* | `labs/lakebase-search/` | Vector + BM25 + hybrid RRF search (enablement irreversible) |
 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
 | App Deployment | `labs/app-deployment/` | Full-stack Lab Console app (capstone) |
 
@@ -253,14 +259,14 @@ For a guided workshop, direct participants to specific paths based on the timing
 3. Check sync status
 4. Key talking point: *"Your analytics lakehouse data, served at OLTP speed."*
 
-#### Lakehouse Sync — Lakebase → Delta *(Beta, UI walkthrough)*
+#### Lakehouse Sync — Lakebase → Delta *(Public Preview, UI walkthrough)*
 
-1. Confirm the **Lakehouse Sync** preview is enabled (workspace Previews page)
-2. From the Lakebase project UI, configure a sync from a `databricks_postgres` table to a Unity Catalog destination
+1. Confirm the **Lakebase Change Data Feed** preview is enabled (workspace Previews page)
+2. Set `REPLICA IDENTITY FULL` on the source table(s), then from the Lakebase project UI (Branch overview → **Change Data Feed** tab) start a feed from a `databricks_postgres` schema to a Unity Catalog destination
 3. Make a few row-level changes in Postgres (inserts / updates / deletes)
-4. Open the destination Delta table — show the SCD Type 2 history rows accumulating
-5. Key talking point: *"Lakebase moves data both ways natively — Reverse ETL pushes Delta in, Lakehouse Sync streams Postgres changes back out with full CDC history."*
-6. **Note:** This lab is a placeholder — the SDK/API is not yet GA, so the demo runs entirely from the workspace UI. See `labs/lakehouse-sync/README.md`.
+4. Open the destination `lb_<table>_history` Delta table — show the CDC rows accumulating (`_pg_change_type` = insert / update_preimage / update_postimage / delete)
+5. Key talking point: *"Lakebase moves data both ways natively — Reverse ETL pushes Delta in, Change Data Feed streams Postgres changes back out with full CDC history."*
+6. **Note:** Enablement is UI-configured (no create-API yet), so the demo runs from the workspace UI. Downstream consumption (materialized view / SDP / Structured Streaming) is fully runnable. See `labs/lakehouse-sync/README.md`.
 
 #### Online Feature Store
 
@@ -304,8 +310,8 @@ For a guided workshop, direct participants to specific paths based on the timing
 1. Create a snapshot branch (instant)
 2. Simulate disaster on a work branch (drop table)
 3. Recover by branching from the snapshot
-4. Explain PITR and the 35-day window
-5. Key talking point: *"Backups are always on. Recovery is instant via branching."*
+4. Explain PITR and the restore window (2–30 days, default 7)
+5. Key talking point: *"Backups are always on; you set the history window. Recovery is instant via branching — note snapshot storage is now a billed component."*
 
 #### Observability — Monitoring
 
@@ -395,15 +401,20 @@ Lakebase-Workshop/
 ├── labs/                                       # Lab paths (pick your adventure)
 │   ├── _setup.py                               # Shared setup (auto-loaded by each lab)
 │   ├── README.md                               # Path index
-│   ├── development-experience/                 # Branching + Autoscaling
+│   ├── development-experience/                 # Branching + Autoscaling + HA
 │   │   ├── Branches_and_Environments.py
-│   │   └── Autoscaling_and_Compute.py
+│   │   ├── Autoscaling_and_Compute.py
+│   │   └── High_Availability_and_Replicas.py
 │   ├── data-operations/                        # CRUD, JSONB, Advanced SQL
 │   │   ├── Data_Operations.py
 │   │   └── Advanced_Postgres.sql
+│   ├── data-api/                               # Data API (PostgREST)
+│   │   └── Data_API.py
+│   ├── lakebase-search/                        # Vector, keyword & hybrid search (Beta)
+│   │   └── Lakebase_Search.py
 │   ├── reverse-etl/                            # Synced tables from Delta
 │   │   └── Reverse_ETL.py
-│   ├── lakehouse-sync/                         # Lakebase → Delta CDC (Beta, UI-only placeholder)
+│   ├── lakehouse-sync/                         # Lakebase → Delta CDC / Change Data Feed (Public Preview)
 │   │   └── README.md
 │   ├── observability/                          # pg_stat views, monitoring
 │   │   └── Observability_and_Monitoring.py
@@ -411,7 +422,7 @@ Lakebase-Workshop/
 │   │   └── Backup_and_Recovery.py
 │   ├── agentic-memory/                         # Agent memory pattern
 │   │   └── Agent_Memory.py
-│   ├── authentication/                         # OAuth, roles, permissions
+│   ├── authentication/                         # OAuth, roles, security & compliance
 │   │   └── Authentication_and_Permissions.py
 │   ├── online-feature-store/                   # Online Feature Store (ML serving)
 │   │   └── Online_Feature_Store.py
@@ -448,6 +459,37 @@ Lakebase-Workshop/
 | "does not have required scopes: postgres" | The app's postgres resource is not attached. Re-run `setup.sh` with option 2, or attach manually in the Apps UI. |
 | `function databricks_create_role(...) does not exist` | The `databricks_auth` extension isn't installed in the Postgres database. Run `CREATE EXTENSION IF NOT EXISTS databricks_auth;` (idempotent, per-database). The current setup notebook + App Deployment lab do this automatically in Step 6. |
 | Facilitator deploys app and sees "project wasn't there" | `setup.sh` now performs a pre-flight check before option 2 and offers to auto-create the project (or run the notebook manually first). |
+
+## Credential Hygiene & Shared-SP Threat Model
+
+The Lab Console runs as **one shared Databricks App** with a **single Service
+Principal (SP)** that every participant grants access to their own project. The
+SP can therefore technically reach any project that has completed setup —
+**correct per-request routing is the tenant boundary.** Keep these practices:
+
+- **Never commit secrets.** `.gitignore` and the DAB `sync.exclude` list block
+  `.env*`, `*.pem`/`*.key`, `*credentials*.json`, service-account files, and
+  Terraform state. Run `python3 scripts/validate_workshop.py` (includes a secret
+  scan) before committing, and install the hooks with `pre-commit install`
+  (gitleaks). CI (`.github/workflows/ci.yml`) also runs gitleaks + validation.
+- **Treat tokens like passwords.** OAuth database credentials are short-lived
+  (~1h). The app and notebooks now only print a short, non-reusable token
+  prefix. When demoing the JWT/credential cells, **clear cell output before
+  exporting or screen-sharing**, and never paste a full token into chat/slides.
+- **Deployed app fails closed.** `app.yaml` sets `LAKEBASE_AUTH_MODE=apps`, so a
+  request without the Apps-proxy identity is rejected (`401`) rather than routed
+  via an ambient SP identity. Do not set `LAKEBASE_ALLOW_HEADERLESS_AUTH` in
+  deployment.
+- **Data API is project-bound.** The proxy calls only the caller's own
+  server-resolved Data API endpoint (no arbitrary URLs), never follows
+  redirects, and caps response size. Still enable **row-level security** on any
+  table exposed via the Data API — see `docs/PERMISSIONS.md`.
+- **Facilitator credentials.** `setup.sh` uses the Databricks CLI's
+  authenticated API calls (no tokens on the command line) — keep your CLI
+  profile private and avoid screen-sharing terminals during auth steps.
+
+See `docs/PERMISSIONS.md` → *Shared Service Principal — Threat Model* for the
+full control table.
 
 ## Cleanup
 

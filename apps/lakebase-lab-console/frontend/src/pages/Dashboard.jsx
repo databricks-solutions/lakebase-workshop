@@ -75,7 +75,7 @@ export default function Dashboard({ onNavigate }) {
         <div className="page-header-row">
           <div>
             <h2>Dashboard</h2>
-            <p>Lakebase Autoscaling project overview and health</p>
+            <p>Lakebase project overview and health</p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
             <RefreshCw size={14} className={loading ? 'icon-spin' : ''} />
@@ -252,9 +252,9 @@ export default function Dashboard({ onNavigate }) {
           <QuickActionCard pageId="data" Icon={Database} title="Data Ops" desc="CRUD operations, JSONB queries, audit log" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="agent" Icon={Bot} title="Agent Memory" desc="Persistent AI agent session and message storage" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="observability" Icon={Activity} title="Observability" desc="PostgreSQL diagnostics, pg_stat views, connection pool" onNavigate={onNavigate} config={ctx?.config} />
-          <QuickActionCard pageId="sync" Icon={RefreshCw} title="Reverse ETL" desc="Sync Delta tables to Lakebase and back to Unity Catalog" onNavigate={onNavigate} config={ctx?.config} />
+          <QuickActionCard pageId="sync" Icon={RefreshCw} title="Synced Tables" desc="Sync Delta tables to Lakebase (Reverse ETL) and back to Unity Catalog" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="feature-store" Icon={Layers} title="Feature Store" desc="ML feature serving with online stores backed by Lakebase" onNavigate={onNavigate} config={ctx?.config} />
-          <QuickActionCard pageId="auth" Icon={Key} title="Auth & Permissions" desc="OAuth credentials, JWT tokens, roles, and grants" onNavigate={onNavigate} config={ctx?.config} />
+          <QuickActionCard pageId="auth" Icon={Key} title="Auth & Security" desc="OAuth credentials, JWT tokens, roles, grants, TLS & compliance" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="backup" Icon={Shield} title="Backup & Recovery" desc="Branch snapshots, PITR, disaster recovery" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="compute" Icon={Cpu} title="Compute Config" desc="Configure compute CU limits and view endpoints" onNavigate={onNavigate} config={ctx?.config} />
           <div className="quick-action-card-wrap">

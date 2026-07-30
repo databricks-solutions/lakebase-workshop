@@ -78,6 +78,34 @@ headers are not available. In this case, the app falls back to:
 - Environment variables: `LAKEBASE_USER_EMAIL`, `LAKEBASE_PROJECT_ID`, `LAKEBASE_SCHEMA`
 - Default Databricks SDK authentication (from `~/.databrickscfg`)
 
+This fallback only applies in **local** auth mode. The deployed app sets
+`LAKEBASE_AUTH_MODE=apps` (in `app.yaml`), which **fails closed**: if a request
+arrives without a forwarded identity, the app returns `401` instead of falling
+back to an ambient Service Principal identity. For local testing, select local
+mode explicitly with `LAKEBASE_AUTH_MODE=local` (this is also auto-detected when
+running off-platform).
+
+## Shared Service Principal — Threat Model
+
+Because every participant shares one app Service Principal, and each participant
+grants that SP access to their own project, **the SP can technically reach every
+project that has completed setup**. Correct per-request routing (email →
+`project_id`/`schema`) is therefore the tenant boundary. The app enforces this
+in depth:
+
+| Risk | Control |
+|------|---------|
+| Spoofed / missing identity | Deployed mode requires the Apps-proxy `X-Forwarded-Email`; missing identity → `401` (`backend/user_context.py`). |
+| Cross-project Data API access | The Data API base URL is resolved server-side from the caller's own project (`w.postgres.get_data_api`); client URLs must match it exactly (`backend/routes_data_api.py`). |
+| Token exfiltration via redirects | The Data API proxy never follows redirects and caps response size (`backend/security.py`). |
+| "Read-only" SQL that writes | The SQL playground runs inside a `READ ONLY` transaction with a statement timeout and row cap (`backend/db.py`, `backend/routes_data.py`). |
+| Cross-user load tests | Load-test status/stop/stream are owner-scoped (`backend/routes_loadtest.py`). |
+| Arbitrary pipeline triggers | Sync triggers resolve the pipeline from the caller's own synced table (`backend/routes_online_tables.py`). |
+| Data exposed over the Data API | Governed by Postgres roles + **row-level security**, not Unity Catalog — enable RLS on every exposed table and never expose data through the project owner account. |
+
+RLS remains valuable defense-in-depth for Data-API-exposed tables, but it does
+not replace the server-side project binding above.
+
 ## Control Plane Permissions (Branch/Endpoint Management)
 
 The app uses the SP for SDK calls (branch create/delete, endpoint management).
@@ -86,6 +114,26 @@ and Compute tabs work for any user who has completed the setup.
 
 ## Synced Table Permissions
 
-Synced tables (Reverse ETL) are created by the Lakebase sync pipeline. The SP
-needs access to the synced table's schema, which is covered by the schema-level
-grants in the setup notebook.
+Synced tables (Reverse ETL) are created by the Lakebase sync pipeline and are
+owned by the internal `databricks_writer_` role — **not** by the user who
+created them. Because of this, the ordinary schema-level `GRANT ALL ON ALL
+TABLES` in the setup notebook does **not** cover pipeline-owned synced tables.
+
+To give the app's SP read access to a synced table, the `databricks_superuser`
+must grant it explicitly:
+
+```sql
+GRANT USAGE ON SCHEMA <sync_schema> TO "<SP_CLIENT_ID>";
+GRANT SELECT ON <sync_schema>.<synced_table> TO "<SP_CLIENT_ID>";
+```
+
+For allowed management operations on a synced table (`CREATE/ALTER/DROP INDEX`,
+`DROP TABLE`), register the identity as a manager instead:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS databricks_auth;
+SELECT databricks_synced_table_add_manager(
+    '"<sync_schema>"."<synced_table>"'::regclass, '<SP_CLIENT_ID>');
+```
+
+See [Synced tables — Ownership and permissions](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#ownership-and-permissions).

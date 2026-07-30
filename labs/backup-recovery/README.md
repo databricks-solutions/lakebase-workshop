@@ -16,7 +16,7 @@ Explore Lakebase's built-in backup architecture: instant branch snapshots and po
 
 - **Always-on backups** — Continuous backup with no configuration needed
 - **Branch snapshots** — Instant, named copies of your database state
-- **Point-in-time recovery (PITR)** — Restore to any moment within a configurable window (up to 35 days)
+- **Point-in-time recovery (PITR)** — Restore to any moment within a configurable window (up to 30 days)
 - **Recovery via branching** — Create a new branch from any point in time, no downtime
 
 ## Documentation

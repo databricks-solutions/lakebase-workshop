@@ -6,6 +6,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.postgres import Branch, BranchSpec, Duration
 
 from .db import get_project_id
+from .security import is_valid_resource_id
 from .user_context import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/branches", tags=["branches"])
@@ -57,6 +58,8 @@ def list_branches(user: UserContext = Depends(get_current_user)):
 @router.get("/{branch_id}", response_model=BranchInfo)
 def get_branch(branch_id: str, user: UserContext = Depends(get_current_user)):
     """Get details of a specific branch."""
+    if not is_valid_resource_id(branch_id):
+        raise HTTPException(400, "Invalid branch id")
     w = _get_client()
     project_id = get_project_id(user)
     b = w.postgres.get_branch(name=f"projects/{project_id}/branches/{branch_id}")
@@ -107,6 +110,8 @@ def create_branch(req: CreateBranchRequest, user: UserContext = Depends(get_curr
 @router.delete("/{branch_id}")
 def delete_branch(branch_id: str, user: UserContext = Depends(get_current_user)):
     """Delete a branch. Only lab- prefixed branches can be deleted via the UI."""
+    if not is_valid_resource_id(branch_id):
+        raise HTTPException(400, "Invalid branch id")
     if not branch_id.startswith("lab-"):
         raise HTTPException(400, "Only lab- prefixed branches can be deleted from the console")
 

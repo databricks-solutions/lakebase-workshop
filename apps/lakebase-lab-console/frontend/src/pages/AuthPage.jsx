@@ -37,6 +37,7 @@ export default function AuthPage() {
   const [credential, setCredential] = useState(null)
   const [roles, setRoles] = useState([])
   const [grants, setGrants] = useState([])
+  const [tls, setTls] = useState(null)
   const [loading, setLoading] = useState(true)
   const [credLoading, setCredLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -45,14 +46,16 @@ export default function AuthPage() {
     setLoading(true)
     setError(null)
     try {
-      const [info, r, g] = await Promise.allSettled([
+      const [info, r, g, t] = await Promise.allSettled([
         api.authConnectionInfo(),
         api.authRoles(),
         api.authGrants(),
+        api.authTls(),
       ])
       if (info.status === 'fulfilled') setConnInfo(info.value)
       if (r.status === 'fulfilled') setRoles(r.value)
       if (g.status === 'fulfilled') setGrants(g.value)
+      if (t.status === 'fulfilled') setTls(t.value)
     } catch (e) {
       setError(e.message)
     }
@@ -77,10 +80,11 @@ export default function AuthPage() {
       <div className="page-header">
         <div className="page-header-row">
           <div>
-            <h2>Authentication & Permissions</h2>
+            <h2>Authentication, Security & Compliance</h2>
             <p>
               Explore Lakebase's OAuth credential system, inspect JWT tokens, view database roles
-              and grants, and get connection details for external tools.
+              and grants, get connection details for external tools, and review the security and
+              compliance posture (encryption, network isolation, TLS).
             </p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={loadAll} disabled={loading}>
@@ -225,7 +229,7 @@ export default function AuthPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
             <div className="info-box info">
               <span style={{ fontWeight: 600 }}>sub:</span>
-              <span>Your Databricks identity (email). This becomes the PostgreSQL role name.</span>
+              <span>The identity the credential is minted for. In this shared app that is the app&apos;s Service Principal (not your personal user), which becomes the PostgreSQL role name.</span>
             </div>
             <div className="info-box info">
               <span style={{ fontWeight: 600 }}>exp:</span>
@@ -337,9 +341,95 @@ PGPASSWORD="$TOKEN" psql \\
   --set=sslmode=require`}</div>
           <div className="info-box warning" style={{ marginTop: 12 }}>
             <span style={{ fontWeight: 600 }}>Token TTL:</span>
-            <span>Tokens expire after 1 hour. Use a password command or connection pool with auto-refresh for long-running sessions.</span>
+            <span>OAuth tokens expire after ~1 hour. Use a password command or connection pool with auto-refresh for long-running sessions.</span>
+          </div>
+          <div className="info-box info" style={{ marginTop: 10 }}>
+            <span style={{ fontWeight: 600 }}>Connection limits:</span>
+            <span>A connection may stay open up to ~3 days total and is closed after ~24 hours idle, regardless of token TTL. OAuth is per-connection; for a shared pooler (PgBouncer) you must use a stored password role, since a rotating token can't authenticate pooled connections.</span>
           </div>
         </CollapsibleSection>
+      </div>
+
+      {/* Security & Compliance */}
+      <div className="card">
+        <div className="card-header">
+          <h3><Shield size={16} /> Security & Compliance</h3>
+          {tls && (
+            <span className={`badge ${tls.ssl === true ? 'badge-success' : tls.ssl === false ? 'badge-danger' : 'badge-info'}`}>
+              {tls.ssl === true ? 'TLS active' : tls.ssl === false ? 'No TLS' : 'TLS unknown'}
+            </span>
+          )}
+        </div>
+
+        {/* Live TLS status */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Encryption in transit (this connection)</div>
+          {tls ? (
+            tls.ssl === true ? (
+              <div style={{ fontSize: 13 }}>
+                <div className="detail-row">
+                  <span className="detail-label">TLS</span>
+                  <span className="detail-value"><span className="badge badge-success">Enabled</span></span>
+                </div>
+                {tls.version && (
+                  <div className="detail-row">
+                    <span className="detail-label">Version</span>
+                    <span className="detail-value detail-value-mono">{tls.version}</span>
+                  </div>
+                )}
+                {tls.cipher && (
+                  <div className="detail-row">
+                    <span className="detail-label">Cipher</span>
+                    <span className="detail-value detail-value-mono" style={{ fontSize: 11 }}>{tls.cipher}</span>
+                  </div>
+                )}
+                {tls.bits != null && (
+                  <div className="detail-row">
+                    <span className="detail-label">Key bits</span>
+                    <span className="detail-value detail-value-mono">{tls.bits}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="info-box info">
+                <span style={{ fontWeight: 600 }}>Status:</span>
+                <span>{tls.note || 'TLS status unavailable for this connection.'} All Lakebase connections require <code>sslmode=require</code>.</span>
+              </div>
+            )
+          ) : (
+            <div className="empty-state empty-state-compact"><p>{loading ? 'Checking TLS...' : 'TLS status unavailable'}</p></div>
+          )}
+        </div>
+
+        {/* Encryption at rest / CMK */}
+        <div className="info-box info">
+          <span style={{ fontWeight: 600 }}>Encryption at rest:</span>
+          <span>Data is always encrypted at rest with Databricks-managed keys. Customer-managed keys (CMK) are available on the Enterprise tier for projects that require control of the encryption key.</span>
+        </div>
+
+        {/* Network isolation / Private Link */}
+        <div className="info-box info" style={{ marginTop: 10 }}>
+          <span style={{ fontWeight: 600 }}>Network isolation:</span>
+          <span>All traffic is TLS-encrypted. For performance-intensive or private connectivity, inbound Private Link keeps traffic off the public internet between your VPC/VNet and the Lakebase endpoint.</span>
+        </div>
+
+        {/* Compliance */}
+        <div className="info-box info" style={{ marginTop: 10 }}>
+          <span style={{ fontWeight: 600 }}>Compliance:</span>
+          <span>Lakebase inherits the workspace's compliance security profile. Confirm the specific certifications available for your region and tier with the Lakebase Security FAQ before storing regulated data.</span>
+        </div>
+
+        {/* Limitation: audit logs */}
+        <div className="info-box warning" style={{ marginTop: 10 }}>
+          <span style={{ fontWeight: 600 }}>Limitation — audit logs:</span>
+          <span>Per-statement Postgres audit logging is not yet available. Track privileged access at the workspace layer (IAM / system tables) and via the roles &amp; grants above.</span>
+        </div>
+
+        {/* Data API governance caveat */}
+        <div className="info-box danger" style={{ marginTop: 10 }}>
+          <span style={{ fontWeight: 600 }}>Data API governance:</span>
+          <span>The Data API talks directly to Postgres and is governed by Postgres roles + row-level security, <strong>not</strong> Unity Catalog. Enable RLS on every exposed table and never expose data through the project owner account.</span>
+        </div>
       </div>
     </div>
   )

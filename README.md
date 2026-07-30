@@ -1,6 +1,8 @@
-# Lakebase Autoscaling Workshop
+# Lakebase Workshop
 
-A hands-on workshop for exploring **Databricks Lakebase Autoscaling** -- a fully managed PostgreSQL database that runs inside your Databricks workspace.
+A hands-on workshop for exploring **Databricks Lakebase** -- a fully managed PostgreSQL database that runs inside your Databricks workspace.
+
+> **It's all one Lakebase now.** Databricks has unified its managed Postgres under a single **Lakebase** offering (the earlier "Provisioned" instances were upgraded to the unified platform by Jul 31, 2026). You'll still see **"Autoscaling"** in doc URLs and the SDK (`w.postgres.*`, the `oltp/projects` surface) — that's the API surface this workshop is built on.
 
 ## Quick Start
 
@@ -33,7 +35,7 @@ You're all set. Pick any lab from the list below and dive in. Each lab is self-c
 
 Before you begin, make sure you have:
 
-- **A Databricks workspace** with Lakebase Autoscaling enabled (your facilitator will confirm this)
+- **A Databricks workspace** with Lakebase enabled (your facilitator will confirm this)
 - **Python 3** installed on your computer (most Macs have this already -- check by running `python3 --version` in your terminal)
 
 The setup script handles everything else, including the Databricks CLI.
@@ -49,7 +51,9 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 | Lab | What You'll Do |
 |-----|----------------|
 | **Data Operations** | Create, read, update, and delete data; work with JSON and arrays |
+| **Data API** | Call Lakebase over REST (PostgREST) with an OAuth bearer token and row-level security |
 | **Agentic Memory** | Store and query AI agent conversation history |
+| **Lakebase Search** *(Beta)* | Add vector + keyword (BM25) search and hybrid ranking to your data |
 | **App Deployment** *(capstone)* | Deploy a full-stack web app backed by Lakebase |
 
 ### Data & ML Engineers
@@ -59,7 +63,7 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 | Lab | What You'll Do |
 |-----|----------------|
 | **Reverse ETL** | Sync your Delta Lake tables into Lakebase for fast lookups |
-| **Lakehouse Sync** *(Beta)* | Sync Lakebase back to the lakehouse as Delta with full CDC history |
+| **Lakehouse Sync** *(Public Preview)* | Sync Lakebase back to the lakehouse as Delta with full CDC change history |
 | **Online Feature Store** | Serve ML features in real time from Lakebase |
 
 ### Platform Architects
@@ -68,8 +72,8 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 
 | Lab | What You'll Do |
 |-----|----------------|
-| **Development Experience** | Create isolated database branches, test autoscaling |
-| **Authentication** | Explore token-based auth and role permissions |
+| **Development Experience** | Create isolated database branches, test autoscaling, and explore high availability + read replicas |
+| **Authentication, Security & Compliance** | Explore token-based auth, role permissions, encryption/CMK, Private Link, and compliance profiles |
 | **Backup & Recovery** | Try point-in-time recovery and instant snapshots |
 | **Observability** | Monitor database performance, indexes, and query activity |
 
@@ -96,10 +100,23 @@ The setup notebook (Step 2 above) automatically grants the app access to your da
 
 ## Resources
 
-- [Lakebase Autoscaling Documentation](https://docs.databricks.com/aws/en/oltp/projects/)
+**Start here (canonical Lakebase docs):**
+- [What is Lakebase?](https://docs.databricks.com/aws/en/oltp/projects/about)
+- [Lakebase documentation (hub)](https://docs.databricks.com/aws/en/oltp/projects/)
 - [Get started with Lakebase](https://docs.databricks.com/aws/en/oltp/projects/get-started)
-- [Databricks Apps Documentation](https://docs.databricks.com/en/dev-tools/databricks-apps/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [June 2026 release notes](https://docs.databricks.com/aws/en/release-notes/product/2026/june) — latest launches & changes
+
+**Feature docs (mapped to the labs):**
+- [Authentication](https://docs.databricks.com/aws/en/oltp/projects/authentication) · [Roles & permissions](https://docs.databricks.com/aws/en/oltp/projects/roles-permissions) · [Private Link](https://docs.databricks.com/aws/en/oltp/projects/private-link)
+- [Branches](https://docs.databricks.com/aws/en/oltp/projects/branches) · [Autoscaling](https://docs.databricks.com/aws/en/oltp/projects/autoscaling) · [Scale to zero](https://docs.databricks.com/aws/en/oltp/projects/scale-to-zero) · [High availability](https://docs.databricks.com/aws/en/oltp/projects/high-availability) · [Read replicas](https://docs.databricks.com/aws/en/oltp/projects/read-replicas)
+- [Serve lakehouse data with synced tables (Reverse ETL)](https://docs.databricks.com/aws/en/oltp/projects/sync-tables) · [Lakebase Change Data Feed (Lakehouse Sync)](https://docs.databricks.com/aws/en/oltp/projects/lakehouse-sync)
+- [Point-in-time restore](https://docs.databricks.com/aws/en/oltp/projects/point-in-time-restore) · [Monitor](https://docs.databricks.com/aws/en/oltp/projects/monitor)
+- [Data API (PostgREST)](https://docs.databricks.com/aws/en/oltp/projects/data-api) · [Lakebase Search](https://docs.databricks.com/aws/en/oltp/projects/lakebase-search) *(Beta)*
+- [Online Feature Store](https://docs.databricks.com/aws/en/machine-learning/feature-store/online-feature-store) · [Connect an application](https://docs.databricks.com/aws/en/oltp/projects/connect-application)
+
+**Reference:**
+- [Databricks Apps documentation](https://docs.databricks.com/en/dev-tools/databricks-apps/)
+- [PostgreSQL documentation](https://www.postgresql.org/docs/)
 
 ## For Facilitators
 

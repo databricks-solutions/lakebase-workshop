@@ -7,7 +7,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .db import execute_query, execute_write, get_schema
+from .db import execute_query, execute_readonly, execute_write, get_schema
+from .security import clamp_limit
 from .user_context import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/data", tags=["data"])
@@ -139,6 +140,7 @@ class EventCreate(BaseModel):
 @router.get("/products")
 def list_products(category: str | None = None, limit: int = 50, user: UserContext = Depends(get_current_user)):
     """List products, optionally filtered by category."""
+    limit = clamp_limit(limit, default=50, maximum=500)
     if category:
         return execute_query(
             user,
@@ -222,6 +224,7 @@ def delete_product(product_id: int, user: UserContext = Depends(get_current_user
 @router.get("/events")
 def list_events(event_type: str | None = None, limit: int = 100, user: UserContext = Depends(get_current_user)):
     """List recent events."""
+    limit = clamp_limit(limit, default=100, maximum=1000)
     if event_type:
         return execute_query(
             user,
@@ -255,6 +258,7 @@ def clear_loadtest_events(user: UserContext = Depends(get_current_user)):
 @router.get("/audit")
 def list_audit_log(table_name: str | None = None, limit: int = 50, user: UserContext = Depends(get_current_user)):
     """View the audit log."""
+    limit = clamp_limit(limit, default=50, maximum=500)
     if table_name:
         return execute_query(
             user,
@@ -287,20 +291,37 @@ class QueryRequest(BaseModel):
     sql: str = Field(..., min_length=1, max_length=5000)
 
 
-_BLOCKED_PATTERNS = re.compile(
-    r"\b(DROP\s+TABLE|DROP\s+SCHEMA|DROP\s+DATABASE|TRUNCATE|ALTER\s+SYSTEM|"
-    r"CREATE\s+ROLE|DROP\s+ROLE|GRANT|REVOKE)\b",
-    re.IGNORECASE,
-)
+# Primary control is a READ ONLY transaction at the database layer (see
+# execute_readonly); these are defense-in-depth so obvious writes/DDL are
+# rejected before touching the database with a clear message.
+_ALLOWED_START = re.compile(r"^\s*(SELECT|WITH|TABLE|VALUES|EXPLAIN|SHOW)\b", re.IGNORECASE)
+_MAX_QUERY_ROWS = 1000
 
 
 @router.post("/query")
 def run_query(req: QueryRequest, user: UserContext = Depends(get_current_user)):
-    """Run a read-only SQL query for the SQL playground."""
-    sql = req.sql.strip().rstrip(";")
-    if _BLOCKED_PATTERNS.search(sql):
-        raise HTTPException(400, "DDL/DCL statements are not allowed in the query playground")
+    """Run a read-only SQL query for the SQL playground.
+
+    Enforced read-only: the statement must be a single read statement AND it runs
+    inside a READ ONLY database transaction, so writes are impossible even if the
+    text check is bypassed. Results are capped for memory/response safety.
+    """
+    sql = req.sql.strip().rstrip(";").strip()
+    if not sql:
+        raise HTTPException(400, "Empty query")
+    # Reject multiple statements (a semicolon anywhere in the middle).
+    if ";" in sql:
+        raise HTTPException(400, "Only a single statement is allowed in the query playground")
+    if not _ALLOWED_START.match(sql):
+        raise HTTPException(
+            400,
+            "Only read-only statements (SELECT/WITH/TABLE/VALUES/EXPLAIN/SHOW) are "
+            "allowed in the query playground",
+        )
     try:
-        return execute_query(user, sql)
-    except Exception as e:
-        raise HTTPException(400, str(e))
+        return execute_readonly(user, sql, max_rows=_MAX_QUERY_ROWS)
+    except HTTPException:
+        raise
+    except Exception:
+        # Do not leak raw driver text (may include SQL, roles, or host details).
+        raise HTTPException(400, "Query failed. Check your SQL syntax and that the table exists.")

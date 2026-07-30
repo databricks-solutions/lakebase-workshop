@@ -228,7 +228,9 @@ import time
 
 cred = w.postgres.generate_database_credential(endpoint=endpoint.name)
 
-print(f"Token preview:  {cred.token[:40]}...")
+# Show only a short, non-reusable prefix. Treat the full token like a password:
+# clear this cell's output before exporting or screen-sharing the notebook.
+print(f"Token preview:  {cred.token[:12]}...")
 print(f"Token length:   {len(cred.token)} characters")
 print(f"Expires at:     {cred.expire_time}")
 print(f"Generated at:   {time.strftime('%H:%M:%S')}")
@@ -294,8 +296,8 @@ time.sleep(2)
 cred_2 = w.postgres.generate_database_credential(endpoint=endpoint.name)
 
 tokens_differ = cred_1.token != cred_2.token
-print(f"Token 1: {cred_1.token[:30]}...")
-print(f"Token 2: {cred_2.token[:30]}...")
+print(f"Token 1: {cred_1.token[:12]}...")
+print(f"Token 2: {cred_2.token[:12]}...")
 print(f"Tokens are different: {tokens_differ}")
 print(f"\nEach call generates a fresh token. Cache them to avoid unnecessary API calls.")
 
@@ -396,8 +398,8 @@ print(f"\nEach call generates a fresh token. Cache them to avoid unnecessary API
 # MAGIC %md
 # MAGIC ## Deployment (Facilitator Only)
 # MAGIC
-# MAGIC The Lab Console is deployed once for the entire workshop via the
-# MAGIC Declarative Automation Bundle:
+# MAGIC The Lab Console is deployed once for the entire workshop via a
+# MAGIC Databricks Asset Bundle (DAB):
 # MAGIC
 # MAGIC ```bash
 # MAGIC # Build the frontend

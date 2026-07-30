@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from .db import execute_query, execute_write
+from .security import clamp_limit
 from .user_context import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
@@ -55,6 +56,7 @@ class MemoryInfo(BaseModel):
 @router.get("/sessions", response_model=list[SessionInfo])
 def list_sessions(limit: int = 20, user: UserContext = Depends(get_current_user)):
     """List recent agent sessions with message counts."""
+    limit = clamp_limit(limit, default=20, maximum=200)
     rows = execute_query(
         user,
         """
@@ -156,6 +158,7 @@ def append_message(session_id: str, req: AppendMessageRequest, user: UserContext
 @router.get("/memories", response_model=list[MemoryInfo])
 def list_memories(user_id: str | None = None, limit: int = 50, user: UserContext = Depends(get_current_user)):
     """List long-term memories, optionally filtered by user_id."""
+    limit = clamp_limit(limit, default=50, maximum=500)
     if user_id:
         rows = execute_query(
             user,

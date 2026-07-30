@@ -54,10 +54,11 @@ export default function SyncStatus({ config }) {
       <div className="page-header">
         <div className="page-header-row">
           <div>
-            <h2>Reverse ETL & Data Sync</h2>
+            <h2>Synced Tables & Data Sync</h2>
             <p>
               Bidirectional data sync between Unity Catalog and Lakebase. Push Delta tables
-              into Lakebase for OLTP access, or sync Lakebase data back to the Lakehouse for analytics.
+              into Lakebase for OLTP access via <strong>synced tables</strong> (Reverse ETL), or sync
+              Lakebase changes back to the Lakehouse for analytics.
             </p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={loadSyncedTables} disabled={loading}>
@@ -158,10 +159,10 @@ w.postgres.create_synced_table(
         )}
       </div>
 
-      {/* ── How Reverse ETL Works ── */}
+      {/* ── How Synced Tables Work ── */}
       <div className="card">
         <div className="card-header">
-          <h3><Layers size={16} /> How Reverse ETL Works</h3>
+          <h3><Layers size={16} /> How Synced Tables Work (Reverse ETL)</h3>
         </div>
         <div className="flow-diagram flow-5">
           <div className="flow-box">
@@ -209,15 +210,17 @@ w.postgres.create_synced_table(
         </table>
       </div>
 
-      {/* ── Forward ETL / Lakehouse Sync ── */}
+      {/* ── Reverse direction: Lakebase → Delta CDC / Change Data Feed ── */}
       <div className="card">
         <div className="card-header">
-          <h3><Table size={16} /> Forward ETL (Lakehouse Sync)</h3>
+          <h3><Table size={16} /> Lakebase → Delta (Change Data Feed)</h3>
+          <span className="badge badge-warning">Public Preview</span>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
-          Lakehouse Sync works in the opposite direction: data written to Lakebase PostgreSQL tables
-          is automatically synced back to Unity Catalog as Delta tables. This enables operational data
-          captured by OLTP applications to flow back into the Lakehouse for analytics, ML training, and reporting.
+          The reverse direction propagates changes made in Lakebase PostgreSQL tables back to Unity Catalog
+          as Delta tables, with full CDC history. It is powered by the <code>wal2delta</code> extension, which
+          reads the Postgres write-ahead log and applies inserts, updates, and deletes to the Delta target.
+          This lets operational data captured by OLTP apps flow into the Lakehouse for analytics, ML training, and reporting.
         </p>
         <div className="flow-diagram flow-5">
           <div className="flow-box">
@@ -228,8 +231,8 @@ w.postgres.create_synced_table(
           <div className="flow-arrow"><ChevronRight size={32} /></div>
           <div className="flow-box">
             <div style={{ marginBottom: 8 }}><Activity size={28} style={{ color: 'var(--teal)' }} /></div>
-            <div className="flow-box-title">Lakehouse Sync</div>
-            <div className="flow-box-subtitle">Automatic</div>
+            <div className="flow-box-title">Change Data Feed</div>
+            <div className="flow-box-subtitle">wal2delta</div>
           </div>
           <div className="flow-arrow"><ChevronRight size={32} /></div>
           <div className="flow-box">
@@ -239,17 +242,17 @@ w.postgres.create_synced_table(
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-          <div className="info-box info">
-            <span style={{ fontWeight: 600 }}>Automatic:</span>
-            <span>Lakebase tables are automatically available as read-only Delta tables in Unity Catalog via the project's managed catalog.</span>
+          <div className="info-box warning">
+            <span style={{ fontWeight: 600 }}>Public Preview:</span>
+            <span>Lakebase → Delta CDC sync (Change Data Feed) is currently configured from the Lakebase UI. It captures full CDC history (insert/update/delete), not just the latest snapshot.</span>
           </div>
           <div className="info-box info">
             <span style={{ fontWeight: 600 }}>Use Cases:</span>
             <span>Run Spark analytics on operational data, train ML models on live application data, build dashboards from OLTP tables, join transactional and analytical datasets.</span>
           </div>
-          <div className="info-box warning">
-            <span style={{ fontWeight: 600 }}>Latency:</span>
-            <span>Forward sync has near real-time latency. Changes in Lakebase tables are typically reflected in the Delta tables within seconds to minutes.</span>
+          <div className="info-box info">
+            <span style={{ fontWeight: 600 }}>Walkthrough:</span>
+            <span>See the <code style={{ color: 'var(--accent)' }}>labs/lakehouse-sync/</code> lab for the current setup steps and status of this feature.</span>
           </div>
         </div>
       </div>

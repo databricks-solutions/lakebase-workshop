@@ -46,12 +46,18 @@ show_app_link("backup", "Backup & Recovery")
 # MAGIC | Feature | How It Works | Use Case |
 # MAGIC |---------|-------------|----------|
 # MAGIC | **Continuous WAL archival** | Write-ahead logs are continuously streamed to durable storage | Foundation for PITR |
-# MAGIC | **Point-in-Time Recovery** | Restore to any second within the configured window (up to 35 days) | Accidental data corruption or deletion |
+# MAGIC | **Point-in-Time Recovery** | Restore to any second within the configured window (up to 30 days) | Accidental data corruption or deletion |
 # MAGIC | **Branch snapshots** | Create a copy-on-write branch as a named checkpoint | Pre-migration safety net |
 # MAGIC | **Branch TTL** | Branches auto-delete after a configurable time | Dev/test cleanup |
 # MAGIC
-# MAGIC **You do NOT need to configure backups.** They are always on. The recovery
-# MAGIC window is configured at the project level.
+# MAGIC **You do NOT need to configure backups** — continuous protection is always on.
+# MAGIC You only set the *history window* at the project level.
+# MAGIC
+# MAGIC > **Storage billing (effective Jun 1, 2026):** recovery is protected by default, but the
+# MAGIC > storage it uses is billed. Lakebase bills three storage components separately:
+# MAGIC > **(1) primary data**, **(2) PITR history** (WAL retained for your history window), and
+# MAGIC > **(3) snapshots**. A longer history window and more/larger snapshot branches increase
+# MAGIC > storage cost — right-size the window and clean up snapshots you no longer need.
 
 # COMMAND ----------
 
@@ -76,6 +82,7 @@ try:
         branch=Branch(
             spec=BranchSpec(
                 source_branch=f"projects/{PROJECT_ID}/branches/production",
+                no_expiry=True,  # snapshots must be non-expiring: you can't create child branches from an expiring branch
             )
         ),
         branch_id=SNAPSHOT_BRANCH,
@@ -120,7 +127,7 @@ except Exception as e:
 # COMMAND ----------
 
 print("Waiting for work branch endpoint...")
-time.sleep(10)
+wait_for_endpoint(WORK_BRANCH)
 work_conn = get_connection(WORK_BRANCH)
 print("✓ Connected to work branch")
 
@@ -188,7 +195,7 @@ except Exception as e:
 # COMMAND ----------
 
 print("Waiting for recovery branch endpoint...")
-time.sleep(10)
+wait_for_endpoint(RECOVERY_BRANCH)
 recovery_conn = get_connection(RECOVERY_BRANCH)
 
 with recovery_conn.cursor() as cur:
@@ -211,10 +218,23 @@ recovery_conn.close()
 # MAGIC
 # MAGIC 1. Lakebase continuously archives WAL (write-ahead log) segments
 # MAGIC 2. You specify a target timestamp
-# MAGIC 3. A new branch is created by replaying WAL up to that timestamp
+# MAGIC 3. Lakebase creates a **new root branch** by replaying WAL up to that timestamp
 # MAGIC 4. The recovered branch is a full, independent copy of the database
 # MAGIC
+# MAGIC ### The documented path is the UI: **Project → Backup & Restore**
+# MAGIC
+# MAGIC Per the [Point-in-time restore doc](https://docs.databricks.com/aws/en/oltp/projects/point-in-time-restore),
+# MAGIC PITR is driven from the **Backup & Restore** flow in the Lakebase App: pick a timestamp within
+# MAGIC the window and Lakebase provisions a new root branch at that point in time.
+# MAGIC
+# MAGIC > **Root-branch limit:** a restore creates a **new root branch**, and a project can have at
+# MAGIC > most **3 root branches**. Delete an older recovery root before restoring again if you hit the limit.
+# MAGIC
 # MAGIC ### Using PITR via the SDK
+# MAGIC
+# MAGIC The `BranchSpec` field for point-in-time branching is **`source_branch_time`** (a protobuf
+# MAGIC `Timestamp` marking the moment on the source branch to restore from). This creates a new root
+# MAGIC branch — the same result as the UI flow above.
 # MAGIC
 # MAGIC ```python
 # MAGIC from datetime import datetime, timezone, timedelta
@@ -232,7 +252,7 @@ recovery_conn.close()
 # MAGIC     branch=Branch(
 # MAGIC         spec=BranchSpec(
 # MAGIC             source_branch=f"projects/{PROJECT_ID}/branches/production",
-# MAGIC             parent_timestamp=ts,
+# MAGIC             source_branch_time=ts,   # the point in time on the source branch
 # MAGIC         )
 # MAGIC     ),
 # MAGIC     branch_id="pitr-recovery",
@@ -242,9 +262,16 @@ recovery_conn.close()
 # MAGIC ### Recovery Window
 # MAGIC
 # MAGIC - Default: **7 days**
-# MAGIC - Maximum: **35 days**
-# MAGIC - Configurable at the project level
+# MAGIC - Range: **2–30 days** (30 is the maximum)
+# MAGIC - Configurable at the project level (Project → Settings → History window)
 # MAGIC - You can recover to any **second** within the window
+# MAGIC
+# MAGIC ### Beyond a single region: Disaster Recovery
+# MAGIC
+# MAGIC PITR and snapshots protect against data loss **within a region**. For protection against a
+# MAGIC regional impairment, Lakebase is adding **cross-region / cross-workspace Disaster Recovery**
+# MAGIC (Beta / on the roadmap). High Availability (multi-AZ failover) protects against *compute*
+# MAGIC failure within a region — see `High_Availability_and_Replicas` in the development-experience path.
 
 # COMMAND ----------
 
@@ -256,7 +283,7 @@ recovery_conn.close()
 # MAGIC | **Before a schema migration** | Create a snapshot branch (instant, free until divergence) |
 # MAGIC | **Accidental DELETE/UPDATE** | PITR to the second before the mistake |
 # MAGIC | **Testing destructive operations** | Create a work branch, test there, delete when done |
-# MAGIC | **Compliance / audit retention** | Set PITR window to 35 days at the project level |
+# MAGIC | **Compliance / audit retention** | Set the history window to its 30-day maximum at the project level |
 # MAGIC | **Disaster recovery drill** | Periodically create a branch from PITR, verify data integrity |
 
 # COMMAND ----------
@@ -269,8 +296,10 @@ recovery_conn.close()
 # COMMAND ----------
 
 # UNCOMMENT TO CLEAN UP:
+# Delete child branches before their parent — RECOVERY_BRANCH is a child of
+# SNAPSHOT_BRANCH, and a branch with children cannot be deleted.
 # work_conn.close()
-# for branch in [WORK_BRANCH, SNAPSHOT_BRANCH, RECOVERY_BRANCH]:
+# for branch in [WORK_BRANCH, RECOVERY_BRANCH, SNAPSHOT_BRANCH]:
 #     try:
 #         w.postgres.delete_branch(name=f"projects/{PROJECT_ID}/branches/{branch}").wait()
 #         print(f"✓ Deleted {branch}")

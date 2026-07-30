@@ -20,17 +20,25 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from .security import assert_valid_schema
 from .user_context import UserContext
 
 logger = logging.getLogger(__name__)
 
 _TOKEN_REFRESH_INTERVAL = 2700  # 45 minutes
 
+# Cap the number of concurrently cached pools so a large workshop cannot grow
+# process memory unbounded; least-recently-created pools are evicted/closed.
+_MAX_POOLS = 50
+
 # Credential cache keyed by project_id:branch_id
 _db_tokens: dict[str, tuple[str, float]] = {}
 _db_tokens_lock = threading.Lock()
 
 _connection_pools: dict[str, ConnectionPool] = {}
+# When each pool was built (its embedded DB credential's mint time), so we can
+# rebuild the pool before the OAuth database credential expires.
+_pool_created_at: dict[str, float] = {}
 _pool_lock = threading.Lock()
 
 _host_cache: dict[str, str] = {}
@@ -152,7 +160,7 @@ def _get_connection_params(user: UserContext, branch_id: str | None = None) -> d
     if not branch_id:
         branch_id = user.branch_id
 
-    schema = user.schema
+    schema = assert_valid_schema(user.schema)
     search_path_opt = f"-c search_path={schema},public"
 
     # Local dev with PGHOST/PGUSER: use env vars directly
@@ -196,14 +204,37 @@ def _get_connection_params(user: UserContext, branch_id: str | None = None) -> d
 
 
 def _build_conninfo(user: UserContext, branch_id: str | None = None) -> str:
-    """Build a libpq connection string for pool creation."""
+    """Build a libpq connection string for pool creation.
+
+    The returned string embeds a short-lived OAuth database credential as the
+    password; never log it.
+    """
     params = _get_connection_params(user, branch_id)
-    schema = user.schema
+    schema = assert_valid_schema(user.schema)
     return (
         f"host={params['host']} dbname={params['dbname']} user={params['user']} "
         f"password={params['password']} sslmode=require "
         f"options=-c\\ search_path={schema},public"
     )
+
+
+def _close_pool_locked(key: str) -> None:
+    """Close and forget a pool. Caller must hold _pool_lock."""
+    pool = _connection_pools.pop(key, None)
+    _pool_created_at.pop(key, None)
+    if pool is not None:
+        try:
+            pool.close()
+        except Exception:
+            pass
+
+
+def _pool_is_fresh(key: str) -> bool:
+    created = _pool_created_at.get(key)
+    if created is None:
+        return False
+    # Rebuild before the OAuth database credential (60 min) expires.
+    return (time.time() - created) < _TOKEN_REFRESH_INTERVAL
 
 
 def get_pool(
@@ -212,19 +243,33 @@ def get_pool(
     min_size: int = 4,
     max_size: int = 20,
 ) -> ConnectionPool:
-    """Get or create a connection pool for the given user's project and branch."""
+    """Get or create a connection pool for the given user's project and branch.
+
+    Pools embed a short-lived OAuth database credential, so a stale pool (older
+    than the refresh interval) is closed and rebuilt to pick up a fresh
+    credential instead of failing once the original token expires.
+    """
     if not branch_id:
         branch_id = user.branch_id
     key = f"{user.project_id}:{branch_id}"
 
-    if key in _connection_pools:
-        pool = _connection_pools[key]
-        if not pool.closed:
-            return pool
+    pool = _connection_pools.get(key)
+    if pool is not None and not pool.closed and _pool_is_fresh(key):
+        return pool
 
     with _pool_lock:
-        if key in _connection_pools and not _connection_pools[key].closed:
-            return _connection_pools[key]
+        existing = _connection_pools.get(key)
+        if existing is not None and not existing.closed and _pool_is_fresh(key):
+            return existing
+
+        # Stale, closed, or credential rotated: rebuild.
+        _close_pool_locked(key)
+
+        # Bound total pools: evict the oldest if at capacity.
+        if len(_connection_pools) >= _MAX_POOLS:
+            oldest = min(_pool_created_at, key=_pool_created_at.get, default=None)
+            if oldest is not None:
+                _close_pool_locked(oldest)
 
         conninfo = _build_conninfo(user, branch_id)
         pool = ConnectionPool(
@@ -237,6 +282,7 @@ def get_pool(
             open=True,
         )
         _connection_pools[key] = pool
+        _pool_created_at[key] = time.time()
         return pool
 
 
@@ -248,6 +294,7 @@ def close_all_pools():
         except Exception:
             pass
     _connection_pools.clear()
+    _pool_created_at.clear()
 
 
 @contextmanager
@@ -284,6 +331,34 @@ def execute_query(
                 return cur.fetchall()
             conn.commit()
             return [{"rowcount": cur.rowcount}]
+
+
+def execute_readonly(
+    user: UserContext,
+    sql: str,
+    params: tuple | None = None,
+    branch_id: str | None = None,
+    max_rows: int = 1000,
+    statement_timeout_ms: int = 15000,
+) -> list[dict]:
+    """Execute SQL inside a READ ONLY transaction and never commit.
+
+    Used by the SQL playground so that even if a statement attempts a write, the
+    database rejects it (read-only transaction). A statement timeout bounds
+    runaway queries and the result set is capped at ``max_rows`` to bound memory
+    and response size. The transaction is always rolled back.
+    """
+    with get_connection(user, branch_id) as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SET TRANSACTION READ ONLY")
+                # SET does not accept bind parameters; inline a validated integer.
+                cur.execute(f"SET LOCAL statement_timeout = {int(statement_timeout_ms)}")
+                cur.execute(sql, params)
+                rows = cur.fetchmany(max_rows) if cur.description else []
+            return rows
+        finally:
+            conn.rollback()
 
 
 def execute_write(

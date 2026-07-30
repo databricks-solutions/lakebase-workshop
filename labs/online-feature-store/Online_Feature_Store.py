@@ -264,7 +264,7 @@ for s in stores:
 # MAGIC
 # MAGIC You can also explore online features through the
 # MAGIC [Unity Catalog UI](https://docs.databricks.com/aws/en/machine-learning/feature-store/online-feature-store#explore-and-query-online-features)
-# MAGIC or the [SQL Editor](https://docs.databricks.com/aws/en/oltp/instances/query/sql-editor).
+# MAGIC or the [SQL Editor](https://docs.databricks.com/aws/en/oltp/projects/sql-editor).
 # MAGIC
 # MAGIC > **Note:** If the publish pipeline is still running, the feature table may
 # MAGIC > not appear yet. Wait a minute and re-run this section.

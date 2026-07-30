@@ -242,7 +242,7 @@ fe.publish_table(
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="info-box info">
                 <span style={{ fontWeight: 600 }}>Online Store:</span>
-                <span>Your existing Lakebase Autoscaling project, reused for feature serving. No separate instance needed — feature tables coexist with your workshop data.</span>
+                <span>Your existing Lakebase project, reused for feature serving. No separate instance needed — feature tables coexist with your workshop data.</span>
               </div>
               <div className="info-box info">
                 <span style={{ fontWeight: 600 }}>Feature Spec:</span>

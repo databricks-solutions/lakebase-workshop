@@ -1,10 +1,14 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Reverse ETL (Synced Tables)
+# MAGIC # Synced Tables (Reverse ETL)
 # MAGIC
 # MAGIC **Path:** Reverse ETL &nbsp;|&nbsp; **Prerequisite:** `00_Setup_Lakebase_Project`
 # MAGIC
-# MAGIC **Lakebase feature:** Sync Delta Lake tables into Lakebase PostgreSQL
+# MAGIC **Lakebase feature:** **Synced tables** — serve Unity Catalog Delta data from Lakebase Postgres
+# MAGIC
+# MAGIC > **Terminology:** the current product term is **"synced tables"** (serving lakehouse data from
+# MAGIC > Lakebase). You'll still hear "Reverse ETL" informally — that's what the folder is named — but
+# MAGIC > prefer "synced tables" to match the docs and UI.
 # MAGIC
 # MAGIC In this notebook you will:
 # MAGIC 1. Set up a Delta source table (use your own data or generate sample data)
@@ -174,6 +178,10 @@ display(spark.sql(f"SELECT * FROM {SOURCE_TABLE}"))
 # MAGIC data size limit across all synced tables is 16 TB. Databricks recommends individual
 # MAGIC tables not exceed 1 TB for tables requiring refreshes.
 # MAGIC
+# MAGIC > **16 TB is the synced-table quota specifically** — the combined logical size of all synced
+# MAGIC > tables. It is *separate* from your project's overall Postgres storage capacity (the default
+# MAGIC > project storage limit is larger and has been increasing). Don't conflate the two.
+# MAGIC
 # MAGIC > **Docs:** [Sync modes](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#sync-modes)
 # MAGIC > &nbsp;|&nbsp; [Schedule syncs with Lakeflow Jobs](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#schedule-or-trigger-subsequent-syncs)
 # MAGIC
@@ -291,13 +299,30 @@ else:
 # MAGIC ## 5. Grant Service Principal Access (for App)
 # MAGIC
 # MAGIC If you plan to deploy the Lab Console app, its Service Principal needs
-# MAGIC explicit access to synced tables. Connect to Lakebase with `psql` or
-# MAGIC the Authentication lab and run:
+# MAGIC explicit access to synced tables. **Synced tables are special:** they are
+# MAGIC owned by the internal `databricks_writer_` role (the sync pipeline manages
+# MAGIC them), **not** by you. A plain `GRANT ALL ON ALL TABLES` run as a normal
+# MAGIC user will silently miss them.
+# MAGIC
+# MAGIC Per the docs, the **`databricks_superuser`** grants read access to another
+# MAGIC identity. Connect as the `databricks_superuser` and run:
 # MAGIC
 # MAGIC ```sql
-# MAGIC -- Use the PostgreSQL schema where synced tables land (often the same name as UC_SCHEMA above)
-# MAGIC GRANT ALL ON ALL TABLES IN SCHEMA <your_sync_schema> TO "<SP_CLIENT_ID>";
+# MAGIC -- Read access to the synced-table schema and table (run as databricks_superuser)
+# MAGIC GRANT USAGE ON SCHEMA <your_sync_schema> TO "<SP_CLIENT_ID>";
+# MAGIC GRANT SELECT ON <your_sync_schema>.<synced_table> TO "<SP_CLIENT_ID>";
 # MAGIC ```
+# MAGIC
+# MAGIC To let an identity perform allowed management operations on a synced table
+# MAGIC (`CREATE/ALTER/DROP INDEX`, `DROP TABLE`), register it as a manager instead:
+# MAGIC
+# MAGIC ```sql
+# MAGIC CREATE EXTENSION IF NOT EXISTS databricks_auth;
+# MAGIC SELECT databricks_synced_table_add_manager(
+# MAGIC     '"<your_sync_schema>"."<synced_table>"'::regclass, '<SP_CLIENT_ID>');
+# MAGIC ```
+# MAGIC
+# MAGIC > **Docs:** [Synced tables — Ownership and permissions](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#ownership-and-permissions)
 
 # COMMAND ----------
 
@@ -308,7 +333,7 @@ else:
 # MAGIC
 # MAGIC | Path | Folder | What You'll Learn |
 # MAGIC |------|--------|-------------------|
-# MAGIC | **Lakehouse Sync** *(Beta)* | `labs/lakehouse-sync/` | The inverse pattern — sync Lakebase → Unity Catalog Delta with CDC + SCD Type 2 |
+# MAGIC | **Lakehouse Sync** *(Public Preview)* | `labs/lakehouse-sync/` | The inverse pattern — sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (CDC change history) |
 # MAGIC | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |

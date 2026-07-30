@@ -8,6 +8,7 @@
 
 import os
 import re
+import time
 import psycopg
 from psycopg.rows import dict_row
 from databricks.sdk import WorkspaceClient
@@ -24,9 +25,36 @@ PG_SCHEMA  = f"lakebase_lab_{_sanitize(user_email).replace('-', '_')}"
 
 _REQUIRED_TABLES = {"products", "events", "agent_sessions", "agent_messages", "agent_memory_store", "audit_log"}
 
-def get_connection(branch="production"):
+def wait_for_endpoint(branch="production", max_attempts=60, delay=5):
+    """Poll until the branch's primary endpoint reports ACTIVE, then return it.
+
+    Newly created branches (dev, snapshot, recovery) need a few seconds to a few
+    minutes for their compute to spin up. Poll for readiness instead of guessing
+    with a fixed sleep, which can flake on slower endpoint creation."""
+    for attempt in range(max_attempts):
+        try:
+            endpoints = list(w.postgres.list_endpoints(
+                parent=f"projects/{PROJECT_ID}/branches/{branch}"
+            ))
+            if endpoints:
+                ep = w.postgres.get_endpoint(name=endpoints[0].name)
+                state = str(getattr(ep.status, "current_state", "")).upper()
+                if "ACTIVE" in state:
+                    return ep
+        except Exception:
+            pass
+        time.sleep(delay)
+    raise TimeoutError(
+        f"Endpoint for branch '{branch}' did not become active within "
+        f"{max_attempts * delay // 60} minutes. Check the Lakebase UI."
+    )
+
+def get_connection(branch="production", connect_retries=3):
     """Connect to a Lakebase branch. Returns a psycopg connection with dict_row.
-    Sets search_path to PG_SCHEMA so table references don't need schema qualifiers."""
+    Sets search_path to PG_SCHEMA so table references don't need schema qualifiers.
+
+    Retries the connect a few times: a scale-to-zero branch may take a moment to
+    wake on the first connection (non-production branches suspend when idle)."""
     endpoints = list(w.postgres.list_endpoints(
         parent=f"projects/{PROJECT_ID}/branches/{branch}"
     ))
@@ -36,9 +64,16 @@ def get_connection(branch="production"):
     params = {"host": host, "dbname": "databricks_postgres",
               "user": user_email, "password": cred.token, "sslmode": "require",
               "options": f"-c search_path={PG_SCHEMA},public"}
-    conn = psycopg.connect(**params, row_factory=dict_row)
-    _ensure_schema(conn, branch)
-    return conn
+    last_err = None
+    for attempt in range(max(1, connect_retries)):
+        try:
+            conn = psycopg.connect(**params, row_factory=dict_row)
+            _ensure_schema(conn, branch)
+            return conn
+        except psycopg.OperationalError as e:
+            last_err = e
+            time.sleep(3)  # brief pause for scale-to-zero wake / transient network
+    raise last_err
 
 def _find_seed_sql():
     """Locate bootstrap/seed.sql by walking up from this file or the calling notebook."""
