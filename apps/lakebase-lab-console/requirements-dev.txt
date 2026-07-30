@@ -1,0 +1,4 @@
+# Development / CI dependencies for the Lakebase Lab Console backend tests.
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27

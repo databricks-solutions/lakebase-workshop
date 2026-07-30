@@ -1,0 +1,47 @@
+bundle:
+  name: lakebase-workshop
+
+sync:
+  include:
+    - "notebooks/**"
+    - "labs/**"
+    - "bootstrap/seed.sql"
+    - "apps/lakebase-lab-console/**"
+  exclude:
+    - "apps/**/node_modules/**"
+    - "apps/**/.venv/**"
+    - "apps/**/__pycache__/**"
+    - "apps/**/frontend/src/**"
+    # Never sync local secrets / credentials into the workspace. .gitignore does
+    # not govern DAB sync, so these must be excluded explicitly.
+    - "**/.env"
+    - "**/.env.*"
+    - "**/.workshop-config"
+    - "**/workshop_context.json"
+    - "**/*.pem"
+    - "**/*.key"
+    - "**/*credentials*.json"
+    - "**/*service_account*.json"
+    - "**/*.tfstate"
+    - "**/*.tfstate.*"
+    - "**/.npmrc"
+    - "**/.pypirc"
+
+resources:
+  apps:
+    lakebase_lab_console:
+      name: lakebase-lab-console
+      description: "Lakebase Lab Console — Shared workshop app with per-user routing"
+      source_code_path: ./apps/lakebase-lab-console
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      profile: dev
+
+  workshop:
+    mode: production
+    workspace:
+      profile: dev
