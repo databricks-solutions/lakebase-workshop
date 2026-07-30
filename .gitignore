@@ -13,10 +13,32 @@ build/
 node_modules/
 **/dist/
 
+# Environment / local config (keep an explicit, secret-free example)
 *.env
-.env.local
+.env
+.env.*
+!.env.example
 workshop_context.json
 .workshop-config
+
+# Credentials / keys / secrets (never commit)
+*.pem
+*.key
+id_rsa
+id_rsa.*
+credentials.json
+*credentials*.json
+*service_account*.json
+*service-account*.json
+.npmrc
+.pypirc
+secrets.*
+*.secret
+
+# Terraform state (may contain secrets)
+*.tfstate
+*.tfstate.*
+*.tfvars
 
 .DS_Store
 Thumbs.db

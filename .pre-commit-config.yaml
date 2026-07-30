@@ -1,0 +1,21 @@
+# Pre-commit hooks for the Lakebase Workshop.
+#
+# Setup (maintainers):
+#   pip install pre-commit
+#   pre-commit install
+#
+# Participants are not required to install this; it is a maintainer safety net.
+# To skip once: SKIP=gitleaks git commit ...
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: workshop-secret-scan
+        name: workshop secret + structure scan
+        entry: python3 scripts/validate_workshop.py
+        language: system
+        pass_filenames: false

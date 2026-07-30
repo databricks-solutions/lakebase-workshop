@@ -460,6 +460,37 @@ Lakebase-Workshop/
 | `function databricks_create_role(...) does not exist` | The `databricks_auth` extension isn't installed in the Postgres database. Run `CREATE EXTENSION IF NOT EXISTS databricks_auth;` (idempotent, per-database). The current setup notebook + App Deployment lab do this automatically in Step 6. |
 | Facilitator deploys app and sees "project wasn't there" | `setup.sh` now performs a pre-flight check before option 2 and offers to auto-create the project (or run the notebook manually first). |
 
+## Credential Hygiene & Shared-SP Threat Model
+
+The Lab Console runs as **one shared Databricks App** with a **single Service
+Principal (SP)** that every participant grants access to their own project. The
+SP can therefore technically reach any project that has completed setup —
+**correct per-request routing is the tenant boundary.** Keep these practices:
+
+- **Never commit secrets.** `.gitignore` and the DAB `sync.exclude` list block
+  `.env*`, `*.pem`/`*.key`, `*credentials*.json`, service-account files, and
+  Terraform state. Run `python3 scripts/validate_workshop.py` (includes a secret
+  scan) before committing, and install the hooks with `pre-commit install`
+  (gitleaks). CI (`.github/workflows/ci.yml`) also runs gitleaks + validation.
+- **Treat tokens like passwords.** OAuth database credentials are short-lived
+  (~1h). The app and notebooks now only print a short, non-reusable token
+  prefix. When demoing the JWT/credential cells, **clear cell output before
+  exporting or screen-sharing**, and never paste a full token into chat/slides.
+- **Deployed app fails closed.** `app.yaml` sets `LAKEBASE_AUTH_MODE=apps`, so a
+  request without the Apps-proxy identity is rejected (`401`) rather than routed
+  via an ambient SP identity. Do not set `LAKEBASE_ALLOW_HEADERLESS_AUTH` in
+  deployment.
+- **Data API is project-bound.** The proxy calls only the caller's own
+  server-resolved Data API endpoint (no arbitrary URLs), never follows
+  redirects, and caps response size. Still enable **row-level security** on any
+  table exposed via the Data API — see `docs/PERMISSIONS.md`.
+- **Facilitator credentials.** `setup.sh` uses the Databricks CLI's
+  authenticated API calls (no tokens on the command line) — keep your CLI
+  profile private and avoid screen-sharing terminals during auth steps.
+
+See `docs/PERMISSIONS.md` → *Shared Service Principal — Threat Model* for the
+full control table.
+
 ## Cleanup
 
 Participants can delete their projects by uncommenting the cleanup cell at the bottom of the foundation notebook, or by running:

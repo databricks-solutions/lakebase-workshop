@@ -437,15 +437,6 @@ reattach_lakebase_resource() {
 
   step "Attaching Lakebase resource to app"
 
-  WORKSPACE_URL=$(databricks auth profiles 2>/dev/null | grep "$profile" | awk '{print $2}')
-  TOKEN=$(databricks auth token --profile "$profile" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])" 2>/dev/null || echo "")
-
-  if [[ -z "$TOKEN" ]]; then
-    warn "Could not get auth token — skipping resource attachment"
-    info "You can attach the postgres resource manually in the Apps UI"
-    return 1
-  fi
-
   BRANCH_PATH="projects/${project_id}/branches/production"
 
   # Look up the database resource path (the API uses generated IDs, not the PG database name)
@@ -482,22 +473,15 @@ print(json.dumps({
 }))
 " 2>/dev/null)
 
-  RESP=$(curl -s -w "\n%{http_code}" -X POST \
-    "${WORKSPACE_URL}/api/2.0/apps/${app_name}/update" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "$PAYLOAD" 2>/dev/null || echo "error")
-
-  HTTP_CODE=$(echo "$RESP" | tail -1)
-  # macOS BSD head doesn't support -n -1; use sed instead
-  BODY=$(echo "$RESP" | sed '$d')
-
-  if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
+  # Use the CLI's authenticated API command so the OAuth token stays in-process
+  # (never placed on the command line / visible via `ps`, and no raw error body
+  # is echoed to the terminal or logs).
+  if databricks api post "/api/2.0/apps/${app_name}/update" \
+       --profile "$profile" --json "$PAYLOAD" >/dev/null 2>&1; then
     ok "Postgres resource attached (project: $project_id)"
     return 0
   else
-    warn "Resource attachment returned HTTP $HTTP_CODE"
-    info "$BODY"
+    warn "Resource attachment failed"
     info "You may need to attach the postgres resource manually in the Apps UI:"
     info "  Compute → Apps → $app_name → Edit → Add resource → Database"
     info "  Select project '$project_id', branch 'production', permission 'Can connect and create'"

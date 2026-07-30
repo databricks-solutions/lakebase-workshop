@@ -12,6 +12,20 @@ sync:
     - "apps/**/.venv/**"
     - "apps/**/__pycache__/**"
     - "apps/**/frontend/src/**"
+    # Never sync local secrets / credentials into the workspace. .gitignore does
+    # not govern DAB sync, so these must be excluded explicitly.
+    - "**/.env"
+    - "**/.env.*"
+    - "**/.workshop-config"
+    - "**/workshop_context.json"
+    - "**/*.pem"
+    - "**/*.key"
+    - "**/*credentials*.json"
+    - "**/*service_account*.json"
+    - "**/*.tfstate"
+    - "**/*.tfstate.*"
+    - "**/.npmrc"
+    - "**/.pypirc"
 
 resources:
   apps:

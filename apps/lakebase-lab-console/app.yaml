@@ -11,6 +11,11 @@ command:
 env:
   - name: LAKEBASE_BRANCH_ID
     value: production
+  # Fail closed: require a Databricks Apps forwarded identity for every request.
+  # The proxy injects X-Forwarded-Email; without it the app returns 401 instead
+  # of falling back to an ambient Service Principal identity.
+  - name: LAKEBASE_AUTH_MODE
+    value: apps
 
 resources:
   - name: lakebase-db

@@ -229,7 +229,7 @@ export default function AuthPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
             <div className="info-box info">
               <span style={{ fontWeight: 600 }}>sub:</span>
-              <span>Your Databricks identity (email). This becomes the PostgreSQL role name.</span>
+              <span>The identity the credential is minted for. In this shared app that is the app&apos;s Service Principal (not your personal user), which becomes the PostgreSQL role name.</span>
             </div>
             <div className="info-box info">
               <span style={{ fontWeight: 600 }}>exp:</span>

@@ -6,6 +6,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.postgres import Endpoint, EndpointSpec, EndpointType, FieldMask
 
 from .db import get_db_metrics, get_project_id
+from .security import is_valid_resource_id
 from .user_context import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/compute", tags=["compute"])
@@ -13,6 +14,18 @@ router = APIRouter(prefix="/api/compute", tags=["compute"])
 
 def _get_client() -> WorkspaceClient:
     return WorkspaceClient()
+
+
+def _require_branch_id(branch_id: str) -> str:
+    if not is_valid_resource_id(branch_id):
+        raise HTTPException(400, "Invalid branch id")
+    return branch_id
+
+
+def _require_endpoint_id(endpoint_id: str) -> str:
+    if not is_valid_resource_id(endpoint_id):
+        raise HTTPException(400, "Invalid endpoint id")
+    return endpoint_id
 
 
 class EndpointInfo(BaseModel):
@@ -58,6 +71,7 @@ class UpdateComputeRequest(BaseModel):
 @router.get("/{branch_id}", response_model=list[EndpointInfo])
 def list_endpoints(branch_id: str, user: UserContext = Depends(get_current_user)):
     """List compute endpoints for a branch, enriched with live DB metrics."""
+    _require_branch_id(branch_id)
     w = _get_client()
     pid = get_project_id(user)
     endpoints = list(
@@ -96,6 +110,7 @@ def get_topology(branch_id: str, user: UserContext = Depends(get_current_user)):
     every endpoint, classifies primary vs read-replica, and reports whether the
     primary exposes a separate read-only host for read routing.
     """
+    _require_branch_id(branch_id)
     w = _get_client()
     pid = get_project_id(user)
     endpoints = list(
@@ -142,6 +157,8 @@ def get_topology(branch_id: str, user: UserContext = Depends(get_current_user)):
 @router.patch("/{branch_id}/{endpoint_id}", response_model=EndpointInfo)
 def update_compute(branch_id: str, endpoint_id: str, req: UpdateComputeRequest, user: UserContext = Depends(get_current_user)):
     """Update autoscaling limits for a compute endpoint."""
+    _require_branch_id(branch_id)
+    _require_endpoint_id(endpoint_id)
     if req.max_cu - req.min_cu > 16:
         raise HTTPException(
             400,

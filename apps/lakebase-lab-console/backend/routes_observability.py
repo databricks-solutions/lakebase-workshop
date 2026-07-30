@@ -114,13 +114,17 @@ def connection_info(user: UserContext = Depends(get_current_user)):
 
 @router.get("/activity")
 def recent_activity(user: UserContext = Depends(get_current_user)):
-    """Current active queries from pg_stat_activity."""
+    """Current active queries from pg_stat_activity.
+
+    Query text is truncated to avoid surfacing full SQL (which may contain
+    literals) from other backends in the shared database.
+    """
     return execute_query(user, """
         SELECT
             pid,
             usename AS username,
             state,
-            query,
+            left(query, 200) AS query,
             query_start::text,
             wait_event_type,
             wait_event,
@@ -135,12 +139,12 @@ def recent_activity(user: UserContext = Depends(get_current_user)):
 
 @router.get("/statements")
 def slow_statements(user: UserContext = Depends(get_current_user)):
-    """Top queries by total time from pg_stat_statements (if available)."""
-    try:
-        execute_query(user, "CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
-    except Exception:
-        pass
+    """Top queries by total time from pg_stat_statements (if available).
 
+    This GET is side-effect free: it does not create the extension. Install
+    pg_stat_statements via the setup notebook if it is not already available;
+    otherwise this returns an empty list.
+    """
     try:
         return execute_query(user, """
             SELECT

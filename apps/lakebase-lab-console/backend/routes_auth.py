@@ -7,14 +7,24 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 
 from .db import execute_query, get_project_id, get_schema
+from .security import log_and_sanitize
 from .user_context import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# Only these JWT claims are surfaced to the browser for the teaching demo. This
+# avoids echoing back every claim (which can include internal ids/scopes) while
+# still showing the identity + validity window the lesson is about.
+_ALLOWED_JWT_CLAIMS = ("sub", "iss", "aud", "exp", "iat", "nbf", "token_type")
+
 
 @router.get("/credential")
 def generate_credential(user: UserContext = Depends(get_current_user)):
-    """Generate an OAuth database credential and decode its JWT payload."""
+    """Generate an OAuth database credential and decode its JWT payload.
+
+    The token itself is never returned; only a short non-reusable preview, its
+    length/expiry, and an allowlisted subset of JWT claims for the lesson.
+    """
     try:
         from databricks.sdk import WorkspaceClient
 
@@ -38,12 +48,13 @@ def generate_credential(user: UserContext = Depends(get_current_user)):
             payload = parts[1]
             payload += "=" * (4 - len(payload) % 4)
             try:
-                jwt_claims = json.loads(base64.urlsafe_b64decode(payload))
+                decoded = json.loads(base64.urlsafe_b64decode(payload))
+                jwt_claims = {k: decoded[k] for k in _ALLOWED_JWT_CLAIMS if k in decoded}
             except Exception:
                 pass
 
         return {
-            "token_preview": cred.token[:40] + "...",
+            "token_preview": cred.token[:12] + "...",
             "token_length": len(cred.token),
             "expire_time": str(cred.expire_time),
             "jwt_claims": jwt_claims,
@@ -51,7 +62,8 @@ def generate_credential(user: UserContext = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Failed to generate credential: {e}")
+        log_and_sanitize(e, "Failed to generate credential", context="/api/auth/credential")
+        raise HTTPException(500, "Failed to generate credential")
 
 
 @router.get("/roles")
@@ -66,7 +78,8 @@ def list_roles(user: UserContext = Depends(get_current_user)):
         """)
         return rows
     except Exception as e:
-        raise HTTPException(500, f"Failed to list roles: {e}")
+        log_and_sanitize(e, "Failed to list roles", context="/api/auth/roles")
+        raise HTTPException(500, "Failed to list roles")
 
 
 @router.get("/grants")
@@ -86,7 +99,8 @@ def list_grants(user: UserContext = Depends(get_current_user)):
         )
         return rows
     except Exception as e:
-        raise HTTPException(500, f"Failed to list grants: {e}")
+        log_and_sanitize(e, "Failed to list grants", context="/api/auth/grants")
+        raise HTTPException(500, "Failed to list grants")
 
 
 @router.get("/tls")
@@ -109,7 +123,8 @@ def tls_status(user: UserContext = Depends(get_current_user)):
             return rows[0]
         return {"ssl": False, "note": "No pg_stat_ssl row for this backend"}
     except Exception as e:
-        return {"ssl": None, "note": f"TLS status unavailable: {e}"}
+        log_and_sanitize(e, "TLS status unavailable", context="/api/auth/tls")
+        return {"ssl": None, "note": "TLS status unavailable"}
 
 
 @router.get("/connection-info")
@@ -144,4 +159,5 @@ def connection_info(user: UserContext = Depends(get_current_user)):
             "branch_id": branch_id,
         }
     except Exception as e:
-        raise HTTPException(500, f"Failed to get connection info: {e}")
+        log_and_sanitize(e, "Failed to get connection info", context="/api/auth/connection-info")
+        raise HTTPException(500, "Failed to get connection info")

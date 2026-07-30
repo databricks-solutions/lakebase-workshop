@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from databricks.sdk import WorkspaceClient
 
 from .db import get_schema
+from .security import log_and_sanitize
 from .user_context import UserContext, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -192,17 +193,33 @@ def _extract_synced_info(synced, full_name: str) -> dict:
 
 @router.post("/synced-tables/{table_id}/trigger")
 def trigger_synced_table(table_id: str, pipeline_id: str | None = None, user: UserContext = Depends(get_current_user)):
-    """Trigger a sync pipeline update for a synced table."""
+    """Trigger a sync pipeline update for a synced table in the caller's schema.
+
+    The pipeline is resolved server-side from the caller's own synced table, so a
+    client cannot start an arbitrary pipeline it happens to know the id of. Any
+    client-supplied pipeline_id must match the resolved one.
+    """
     try:
         w = _get_client()
-        if not pipeline_id:
-            raise HTTPException(400, "pipeline_id is required to trigger a sync")
-        w.pipelines.start_update(pipeline_id=pipeline_id)
-        return {"message": f"Sync pipeline {pipeline_id} triggered for {table_id}"}
+        schema = get_schema(user)
+        full_name = f"main.{schema}.{table_id}"
+
+        synced = _try_get_synced_table(w, full_name)
+        if not synced:
+            raise HTTPException(404, "Synced table not found in your project")
+        resolved_pipeline_id = _extract_synced_info(synced, full_name).get("pipeline_id")
+        if not resolved_pipeline_id:
+            raise HTTPException(404, "No sync pipeline found for this table")
+        if pipeline_id and pipeline_id != resolved_pipeline_id:
+            raise HTTPException(403, "pipeline_id does not match this synced table")
+
+        w.pipelines.start_update(pipeline_id=resolved_pipeline_id)
+        return {"message": f"Sync pipeline triggered for {table_id}"}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Failed to trigger sync: {e}")
+        log_and_sanitize(e, "Failed to trigger sync", context="/api/online-tables/trigger")
+        raise HTTPException(500, "Failed to trigger sync")
 
 
 # ── Feature Specs (UC Online Tables) ───────────────────────────────────────

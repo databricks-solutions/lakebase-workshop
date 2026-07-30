@@ -384,11 +384,25 @@ def _build_status(test_id: str, state: dict) -> LoadTestStatus:
     )
 
 
+def _owned_test(test_id: str, user: UserContext) -> dict:
+    """Return the test state only if it belongs to the calling user, else 404.
+
+    Ownership is enforced so one participant cannot observe or stop another
+    participant's load test in the shared workshop app.
+    """
+    state = _active_tests.get(test_id)
+    if not state or state.get("owner") != user.email:
+        raise HTTPException(404, "Test not found")
+    return state
+
+
 @router.post("/start", response_model=LoadTestStatus)
 async def start_load_test(req: LoadTestRequest, user: UserContext = Depends(get_current_user)):
     """Start a new load test."""
-    if any(s["running"] for s in _active_tests.values()):
-        raise HTTPException(409, "A load test is already running")
+    # Per-user limit: a participant may only have one running test at a time.
+    # (Other participants' tests do not block this user.)
+    if any(s["running"] for s in _active_tests.values() if s.get("owner") == user.email):
+        raise HTTPException(409, "You already have a load test running")
 
     test_id = str(uuid.uuid4())[:8]
     _active_tests[test_id] = {
@@ -415,6 +429,7 @@ async def start_load_test(req: LoadTestRequest, user: UserContext = Depends(get_
         "_db_metrics_cache": {},
         "branch_id": req.branch_id,
         "user": user,
+        "owner": user.email,
     }
 
     asyncio.create_task(_orchestrator(test_id, req, user))
@@ -435,45 +450,35 @@ async def start_load_test(req: LoadTestRequest, user: UserContext = Depends(get_
 
 
 @router.post("/stop/{test_id}")
-def stop_load_test(test_id: str):
-    """Stop a running load test."""
-    state = _active_tests.get(test_id)
-    if not state:
-        raise HTTPException(404, "Test not found")
+def stop_load_test(test_id: str, user: UserContext = Depends(get_current_user)):
+    """Stop a running load test (owner only)."""
+    state = _owned_test(test_id, user)
     state["running"] = False
     return {"status": "stopped", "test_id": test_id}
 
 
 @router.get("/active", response_model=LoadTestStatus)
-def get_active_load_test():
-    """Return the currently running load test, if any."""
+def get_active_load_test(user: UserContext = Depends(get_current_user)):
+    """Return the calling user's currently running load test, if any."""
     for tid, state in _active_tests.items():
-        if state["running"]:
-            user = state.get("user")
-            if user:
-                state["_db_metrics_cache"] = get_db_metrics(user, state.get("branch_id"))
+        if state["running"] and state.get("owner") == user.email:
+            state["_db_metrics_cache"] = get_db_metrics(user, state.get("branch_id"))
             return _build_status(tid, state)
     raise HTTPException(404, "No active load test")
 
 
 @router.get("/status/{test_id}", response_model=LoadTestStatus)
-def get_load_test_status(test_id: str):
-    """Get current status of a load test."""
-    state = _active_tests.get(test_id)
-    if not state:
-        raise HTTPException(404, "Test not found")
-    user = state.get("user")
-    if user:
-        state["_db_metrics_cache"] = get_db_metrics(user, state.get("branch_id"))
+def get_load_test_status(test_id: str, user: UserContext = Depends(get_current_user)):
+    """Get current status of a load test (owner only)."""
+    state = _owned_test(test_id, user)
+    state["_db_metrics_cache"] = get_db_metrics(user, state.get("branch_id"))
     return _build_status(test_id, state)
 
 
 @router.get("/stream/{test_id}")
-async def stream_metrics(test_id: str):
-    """Server-Sent Events stream of load test metrics."""
-    state = _active_tests.get(test_id)
-    if not state:
-        raise HTTPException(404, "Test not found")
+async def stream_metrics(test_id: str, user: UserContext = Depends(get_current_user)):
+    """Server-Sent Events stream of load test metrics (owner only)."""
+    state = _owned_test(test_id, user)
 
     async def event_generator():
         while state.get("running", False):

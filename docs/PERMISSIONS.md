@@ -78,6 +78,34 @@ headers are not available. In this case, the app falls back to:
 - Environment variables: `LAKEBASE_USER_EMAIL`, `LAKEBASE_PROJECT_ID`, `LAKEBASE_SCHEMA`
 - Default Databricks SDK authentication (from `~/.databrickscfg`)
 
+This fallback only applies in **local** auth mode. The deployed app sets
+`LAKEBASE_AUTH_MODE=apps` (in `app.yaml`), which **fails closed**: if a request
+arrives without a forwarded identity, the app returns `401` instead of falling
+back to an ambient Service Principal identity. For local testing, select local
+mode explicitly with `LAKEBASE_AUTH_MODE=local` (this is also auto-detected when
+running off-platform).
+
+## Shared Service Principal — Threat Model
+
+Because every participant shares one app Service Principal, and each participant
+grants that SP access to their own project, **the SP can technically reach every
+project that has completed setup**. Correct per-request routing (email →
+`project_id`/`schema`) is therefore the tenant boundary. The app enforces this
+in depth:
+
+| Risk | Control |
+|------|---------|
+| Spoofed / missing identity | Deployed mode requires the Apps-proxy `X-Forwarded-Email`; missing identity → `401` (`backend/user_context.py`). |
+| Cross-project Data API access | The Data API base URL is resolved server-side from the caller's own project (`w.postgres.get_data_api`); client URLs must match it exactly (`backend/routes_data_api.py`). |
+| Token exfiltration via redirects | The Data API proxy never follows redirects and caps response size (`backend/security.py`). |
+| "Read-only" SQL that writes | The SQL playground runs inside a `READ ONLY` transaction with a statement timeout and row cap (`backend/db.py`, `backend/routes_data.py`). |
+| Cross-user load tests | Load-test status/stop/stream are owner-scoped (`backend/routes_loadtest.py`). |
+| Arbitrary pipeline triggers | Sync triggers resolve the pipeline from the caller's own synced table (`backend/routes_online_tables.py`). |
+| Data exposed over the Data API | Governed by Postgres roles + **row-level security**, not Unity Catalog — enable RLS on every exposed table and never expose data through the project owner account. |
+
+RLS remains valuable defense-in-depth for Data-API-exposed tables, but it does
+not replace the server-side project binding above.
+
 ## Control Plane Permissions (Branch/Endpoint Management)
 
 The app uses the SP for SDK calls (branch create/delete, endpoint management).

@@ -4,6 +4,7 @@ import {
   RefreshCw, Database, Terminal, Play, Shield, AlertCircle, Check, Clock, Key,
 } from '../icons'
 import LabBanner from '../LabBanner'
+import { pickPrefilledDataApiUrl } from '../util/apiSafety'
 
 function StatusPill({ ok, label }) {
   return (
@@ -40,7 +41,11 @@ export default function DataApiPanel() {
     setLoading(true)
     setError(null)
     try {
-      setStatus(await api.dataApiStatus())
+      const s = await api.dataApiStatus()
+      setStatus(s)
+      // Prefill the trusted, server-resolved endpoint for this participant's
+      // own project so nobody has to (or can) paste another project's URL.
+      setUrl((current) => pickPrefilledDataApiUrl(s, current))
     } catch (e) {
       setError(e.message)
     }
@@ -182,8 +187,13 @@ export default function DataApiPanel() {
           <h3><Terminal size={16} /> Call the Data API</h3>
         </div>
         <div className="form-group">
-          <label>Data API URL (from the API tab)</label>
+          <label>Data API URL (your project&apos;s endpoint)</label>
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://<project>.<region>.databricks.com/..." />
+          {status?.data_api_url && (
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Prefilled from your project. The app only calls your own project&apos;s Data API.
+            </span>
+          )}
         </div>
         <div className="form-row">
           <div className="form-group">

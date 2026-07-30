@@ -77,7 +77,9 @@ show_app_link("auth", "Auth & Permissions")
 
 cred = w.postgres.generate_database_credential(endpoint=ENDPOINT_NAME)
 
-print(f"Token preview:  {cred.token[:40]}...")
+# Show only a short, non-reusable prefix. Treat the full token like a password:
+# clear this cell's output before exporting or screen-sharing the notebook.
+print(f"Token preview:  {cred.token[:12]}...")
 print(f"Expires at:     {cred.expire_time}")
 print(f"Token length:   {len(cred.token)} characters")
 
@@ -88,6 +90,10 @@ print(f"Token length:   {len(cred.token)} characters")
 # MAGIC
 # MAGIC The credential is a standard JWT. Let's decode the payload to see
 # MAGIC what's inside — without verifying the signature.
+# MAGIC
+# MAGIC > **Hygiene:** the decoded payload includes identity claims. Clear this
+# MAGIC > cell's output before exporting or screen-sharing, and never paste a full
+# MAGIC > token into chat or slides.
 
 # COMMAND ----------
 

@@ -249,7 +249,68 @@ def check_backend(res: Result) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# 6/7. Opt-in: frontend build, bundle validate
+# 6. Secret / credential scan (offline, deterministic)
+# --------------------------------------------------------------------------- #
+# Files that legitimately contain secret-shaped patterns (this scanner, docs
+# describing the patterns, and the secret-free example env).
+SECRET_SCAN_EXCLUDE = {
+    "scripts/validate_workshop.py",
+    "docs/LAKEBASE_AUDIT.md",
+    "apps/lakebase-lab-console/.env.example",
+    "package-lock.json",
+}
+
+# (label, regex) — high-signal, low-false-positive credential patterns.
+SECRET_PATTERNS: list[tuple[str, str]] = [
+    ("Databricks PAT (dapi...)", r"\bdapi[0-9a-f]{20,}\b"),
+    ("JWT literal (eyJ...)", r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}"),
+    ("AWS access key id", r"\bAKIA[0-9A-Z]{16}\b"),
+    ("Private key block", r"-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----"),
+    ("Hardcoded client secret", r"(?i)client_secret\s*[=:]\s*['\"][A-Za-z0-9._~+/-]{16,}['\"]"),
+]
+
+# Credential files that should never be committed.
+CREDENTIAL_FILE_GLOBS = (
+    "*.pem", "*.key", "credentials.json", "*service_account*.json",
+    "*.tfstate", ".npmrc", ".pypirc",
+)
+
+
+def check_secrets(res: Result) -> None:
+    print(f"{C.B}▶ Secret / credential scan{C.X}")
+    scan = [
+        p for p in walk_files(
+            ".py", ".md", ".sql", ".jsx", ".js", ".ts", ".sh",
+            ".yml", ".yaml", ".json", ".txt", ".cfg", ".ini", ".env",
+        )
+        if rel(p) not in SECRET_SCAN_EXCLUDE
+    ]
+    compiled = [(label, re.compile(rx)) for label, rx in SECRET_PATTERNS]
+    hits = 0
+    for p in scan:
+        for n, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            for label, rx in compiled:
+                if rx.search(line):
+                    hits += 1
+                    res.fail(f"{rel(p)}:{n}: possible secret ({label})")
+
+    # Credential files present in the tree.
+    cred_files = 0
+    for pattern in CREDENTIAL_FILE_GLOBS:
+        for p in REPO.rglob(pattern):
+            if any(part in SKIP_DIRS for part in p.parts):
+                continue
+            cred_files += 1
+            res.fail(f"{rel(p)}: credential file should not be committed")
+
+    if hits == 0 and cred_files == 0:
+        print(f"  {C.G}✓{C.X} no secrets or credential files found ({len(scan)} files)")
+    else:
+        print(f"  {C.R}✗{C.X} {hits} secret hit(s), {cred_files} credential file(s)")
+
+
+# --------------------------------------------------------------------------- #
+# 7/8. Opt-in: frontend build, bundle validate
 # --------------------------------------------------------------------------- #
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
     proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
@@ -311,6 +372,7 @@ def main() -> int:
     check_regressions(res)
     check_links(res)
     check_backend(res)
+    check_secrets(res)
     if args.frontend or args.full:
         check_frontend(res)
     if args.bundle or args.full:

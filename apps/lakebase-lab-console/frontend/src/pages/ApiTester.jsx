@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Terminal, Play, Clock, AlertCircle, Check, Server, Database } from '../icons'
 import DataApiPanel from './DataApiPanel'
+import { isSafeApiPath } from '../util/apiSafety'
 
 const PRESETS = [
   { label: 'Health Check', method: 'GET', path: '/api/health' },
@@ -25,6 +26,11 @@ function ConsolePanel() {
   const [elapsed, setElapsed] = useState(null)
 
   const send = async () => {
+    if (!isSafeApiPath(path)) {
+      setError(true)
+      setResponse('Path must be a same-origin API path starting with /api/ (no absolute URLs, "//", or "..").')
+      return
+    }
     setLoading(true)
     setResponse(null)
     setError(false)
