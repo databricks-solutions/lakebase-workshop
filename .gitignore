@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 __pycache__/
 *.py[cod]
 *$py.class
@@ -58,3 +59,10 @@ docs/one-pager.html
 docs/one-pager.pdf
 
 docs/CREDITS.md
+=======
+*conf*.json
+.DS_Store
+__pycache__
+.idea/
+.env
+>>>>>>> solutions/main
