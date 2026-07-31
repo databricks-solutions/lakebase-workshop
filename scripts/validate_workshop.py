@@ -41,7 +41,6 @@ SKIP_DIRS = {
 
 # Files excluded from the regression grep (they legitimately quote old facts).
 REGRESSION_EXCLUDE = {
-    "docs/LAKEBASE_AUDIT.md",
     "scripts/validate_workshop.py",
 }
 
@@ -255,7 +254,6 @@ def check_backend(res: Result) -> None:
 # describing the patterns, and the secret-free example env).
 SECRET_SCAN_EXCLUDE = {
     "scripts/validate_workshop.py",
-    "docs/LAKEBASE_AUDIT.md",
     "apps/lakebase-lab-console/.env.example",
     "package-lock.json",
 }

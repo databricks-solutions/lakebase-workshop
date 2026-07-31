@@ -293,7 +293,7 @@ For a guided workshop, direct participants to specific paths based on the timing
 
 1. Show the production endpoint's current CU range
 2. Walk through the CU sizing reference table
-3. Explain the max 8 CU spread constraint
+3. Explain the max 16 CU spread constraint
 4. Mention scale-to-zero for non-production branches
 5. Key talking point: *"You pay for what you use. Dev branches cost nothing when idle."*
 
@@ -441,8 +441,7 @@ Lakebase-Workshop/
 │   └── requirements.txt                        # Python deps for local use
 └── docs/
     ├── WORKSHOP_FACILITATOR.md
-    ├── PERMISSIONS.md
-    └── CREDITS.md
+    └── PERMISSIONS.md
 ```
 
 ## Troubleshooting
