@@ -48,8 +48,9 @@ export default function BackupRecoveryPage() {
     setCreating(false)
   }
 
-  const snapshotBranches = branches.filter(b => !b.ttl)
-  const tempBranches = branches.filter(b => b.ttl)
+  // Temporary branches auto-delete; the API reports this via expire_time (a TTL
+  // was set at create). Persistent snapshots have no expire_time.
+  const isTemporary = (b) => b.expire_time && b.expire_time !== 'None'
 
   return (
     <div>
@@ -83,8 +84,8 @@ export default function BackupRecoveryPage() {
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12, lineHeight: 1.6 }}>
           Backups are always on — you don't configure them, you just set the history window. Lakebase
-          provides multiple layers of data protection built into every project. Note that the storage
-          recovery uses <strong>is billed</strong> (as of Jun 1, 2026): primary data, PITR history, and
+          provides multiple layers of data protection built into every project. Note that recovery
+          storage <strong>is billed</strong> (as of Jun 1, 2026): primary data, PITR history, and
           snapshots are three separate storage components, so a longer window and more snapshots cost more.
         </p>
         <table className="data-table">
@@ -191,8 +192,8 @@ export default function BackupRecoveryPage() {
                     )}
                   </div>
                   <div className="btn-row">
-                    {b.ttl ? (
-                      <span className="badge badge-warning" style={{ fontSize: 10 }}>TTL: {Math.round(b.ttl / 3600)}h</span>
+                    {isTemporary(b) ? (
+                      <span className="badge badge-warning" style={{ fontSize: 10 }}>Auto-deletes</span>
                     ) : (
                       <span className="badge badge-success" style={{ fontSize: 10 }}>Persistent</span>
                     )}
@@ -298,7 +299,7 @@ w.postgres.create_branch(
           <tbody>
             <tr>
               <td>Before a schema migration</td>
-              <td>Create a snapshot branch (instant, free until divergence)</td>
+              <td>Create a snapshot branch (instant; shares storage until data diverges)</td>
             </tr>
             <tr>
               <td>Accidental DELETE/UPDATE</td>

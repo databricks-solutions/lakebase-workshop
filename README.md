@@ -35,10 +35,13 @@ You're all set. Pick any lab from the list below and dive in. Each lab is self-c
 
 Before you begin, make sure you have:
 
-- **A Databricks workspace** with Lakebase enabled (your facilitator will confirm this)
-- **Python 3** installed on your computer (most Macs have this already -- check by running `python3 --version` in your terminal)
+- **Your own Databricks workspace** with Lakebase enabled
+- **Python 3.11+** on your computer (`python3 --version`)
+- **Databricks CLI ≥ 0.294.0**, logged in via `databricks auth login` (do this ahead of time)
 
-The setup script handles everything else, including the Databricks CLI.
+Share this with participants ahead of time: **[Prerequisites Guide](docs/PREREQUISITES.md)** (GitHub access, bring-your-own workspace, and auth login).
+
+On workshop day, `setup.sh` installs the remaining Python packages into your active environment (no separate venv required).
 
 ## Choose a Lab
 

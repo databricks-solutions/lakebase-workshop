@@ -13,12 +13,15 @@
 # MAGIC 4. Check cache hit ratios and I/O performance
 # MAGIC 5. Identify slow query patterns
 # MAGIC 6. Learn where to find the Lakebase monitoring dashboard in the workspace
+# MAGIC 7. Explore platform monitoring: metrics dashboard, OpenTelemetry export, Genie, and Insights
 # MAGIC
 # MAGIC **Run `00_Setup_Lakebase_Project` first.** Running `labs/data-operations/Data_Operations` first
 # MAGIC for more interesting metrics. Catalog queries below filter on **your** PostgreSQL schema (`PG_SCHEMA` from `_setup`), not a fixed name.
 # MAGIC
-# MAGIC **Docs:** [Monitor](https://docs.databricks.com/aws/en/oltp/projects/monitor) |
-# MAGIC [Monitor with pg_stat_statements](https://docs.databricks.com/aws/en/oltp/projects/pg-stat-statements)
+# MAGIC **Docs:** [Observability](https://docs.databricks.com/aws/en/oltp/projects/monitor) |
+# MAGIC [pg_stat_statements](https://docs.databricks.com/aws/en/oltp/projects/pg-stat-statements) |
+# MAGIC [OpenTelemetry export](https://docs.databricks.com/aws/en/oltp/projects/opentelemetry) |
+# MAGIC [AI-assisted troubleshooting](https://docs.databricks.com/aws/en/oltp/projects/ai-assisted-troubleshooting)
 
 # COMMAND ----------
 
@@ -229,16 +232,20 @@ with conn.cursor() as cur:
 # MAGIC %md
 # MAGIC ### Connection Limits
 # MAGIC
-# MAGIC Connection limits scale with CU size:
+# MAGIC Max connections available for direct use scale with CU size:
 # MAGIC
 # MAGIC | CU | Max Connections |
 # MAGIC |----|----------------|
-# MAGIC | 0.5 | 104 |
-# MAGIC | 1 | 209 |
-# MAGIC | 4 | 839 |
-# MAGIC | 8 | 1,678 |
-# MAGIC | 16 | 3,357 |
-# MAGIC | 32+ | 4,000 |
+# MAGIC | 0.5 | 105 |
+# MAGIC | 1 | 218 |
+# MAGIC | 4 | 894 |
+# MAGIC | 8 | 1,795 |
+# MAGIC | 16 | 3,597 |
+# MAGIC | 32+ | 3,993 |
+# MAGIC
+# MAGIC > **Note:** `SHOW max_connections` (below) reports a **higher** number than this table because it
+# MAGIC > includes connections reserved for system/administrative use. The values above are what's
+# MAGIC > available for your workload. See [Compute specifications](https://docs.databricks.com/aws/en/oltp/projects/manage-computes).
 
 # COMMAND ----------
 
@@ -312,7 +319,7 @@ with conn.cursor() as cur:
 # MAGIC 2. Select your project
 # MAGIC 3. Click the **Monitoring** tab
 # MAGIC
-# MAGIC The UI shows:
+# MAGIC The **Metrics dashboard** shows:
 # MAGIC - **Compute utilization** — current CU usage and autoscaling events
 # MAGIC - **Connection count** — active connections over time
 # MAGIC - **Query throughput** — queries per second
@@ -321,6 +328,33 @@ with conn.cursor() as cur:
 # MAGIC
 # MAGIC This is especially useful during load tests (notebook 04 + the Lab Console
 # MAGIC app) to watch autoscaling respond to traffic in real time.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 8. Platform Monitoring: Export, Genie & Insights
+# MAGIC
+# MAGIC The `pg_stat` queries above are the live, do-it-yourself layer. Lakebase also
+# MAGIC captures your project's telemetry as **Delta tables in Unity Catalog** and builds
+# MAGIC managed tooling on top. You configure all of this in the **Lakebase UI**, not in code:
+# MAGIC
+# MAGIC | Tool | What it does | Where |
+# MAGIC |------|--------------|-------|
+# MAGIC | **Metrics dashboard** | System + DB metrics (CPU, RAM, connections, DB size, throughput) over time | Project → **Monitoring** |
+# MAGIC | **OpenTelemetry export** | Managed collector ships metrics (prefixed `lakebase_`) and Postgres logs to any OTLP backend — Grafana, New Relic, Datadog, Honeycomb | Project → **Settings → Integrations** |
+# MAGIC | **Genie** | Ask about a slow query or capacity issue in plain language; grounded in your telemetry + live compute state | Project → Monitoring → **Fix with Genie** |
+# MAGIC | **Insights** | Background agent reviews telemetry on a schedule and surfaces issues proactively | Project → Monitoring → **Insights** |
+# MAGIC
+# MAGIC **Setup notes:**
+# MAGIC - Genie and Insights need an **observability configuration** that captures telemetry to Unity
+# MAGIC   Catalog. A workspace admin enables the **Advanced Postgres Telemetry** preview from the Previews page.
+# MAGIC - There's **no separate charge** — it counts toward ingestion, Databricks-managed storage, and Genie usage you already pay for.
+# MAGIC - For OTLP export, enter the base endpoint URL (the collector appends `/v1/metrics` and `/v1/logs`).
+# MAGIC   For Datadog, enable **Delta metrics** temporality.
+# MAGIC
+# MAGIC **Docs:** [OpenTelemetry export](https://docs.databricks.com/aws/en/oltp/projects/opentelemetry) |
+# MAGIC [AI-assisted troubleshooting](https://docs.databricks.com/aws/en/oltp/projects/ai-assisted-troubleshooting) |
+# MAGIC [Insights](https://docs.databricks.com/aws/en/oltp/projects/observability-ai-insights)
 
 # COMMAND ----------
 

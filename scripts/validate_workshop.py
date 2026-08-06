@@ -37,6 +37,9 @@ REPO = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {
     ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
     ".databricks", ".bundle", ".cursor", "agent-tools", ".egg-info",
+    # Live-run reports quote the very code they flag, so scanning them would turn
+    # every real finding into a permanent static failure.
+    ".validation-reports",
 }
 
 # Files excluded from the regression grep (they legitimately quote old facts).
@@ -47,7 +50,8 @@ REGRESSION_EXCLUDE = {
 # Stale facts that must not reappear in learner-facing content. (label, regex)
 # Extend this list whenever an audit corrects a hard fact.
 REGRESSIONS: list[tuple[str, str]] = [
-    ("autoscaling max was corrected to 64 CU (not 112)", r"\b112\s*CU\b"),
+    # Absolute max is 112 CU (fixed-size); autoscaling max remains 64 CU.
+    ("do not claim autoscaling goes to 112 CU", r"(?i)autoscal(?:e|ing).{0,80}\b112\s*CU\b|\b112\s*CU\b.{0,80}autoscal(?:e|ing)"),
     ("autoscaling spread is <=16 CU (not 8)", r"spread[^.\n]{0,40}\b8\s*CU\b"),
     ("autoscaling range wording '0.5-32 CU' is stale", r"0\.5\s*[-\u2013]\s*32\s*CU"),
     ("restore window max is 30 days (not 35)", r"\b35[\s-]?day"),
@@ -55,6 +59,17 @@ REGRESSIONS: list[tuple[str, str]] = [
     ("use 'Databricks Asset Bundle' (not 'Declarative Automation Bundle')", r"Declarative Automation Bundle"),
     ("project labs must link oltp/projects (not oltp/instances)", r"oltp/instances/"),
     ("lakehouse-sync is Public Preview / CDF (not 'Beta, UI-only')", r"Beta,\s*UI-only"),
+    # The SDK interpolates securable_type into the URL path and the enum is not a
+    # str subclass, so the member must be unwrapped with .value.
+    ("pass SecurableType.<X>.value, not the enum member", r"SecurableType\.[A-Z_]+\b(?!\.value)"),
+    # Requesting both in one pip install makes the resolver backtrack until the
+    # environment is wedged and dbutils.library.restartPython() never returns.
+    ("do not pin databricks-sdk alongside databricks-feature-engineering",
+     r"pip install[^\n]*(?:databricks-sdk[^\n]*databricks-feature-engineering"
+     r"|databricks-feature-engineering[^\n]*databricks-sdk)"),
+    # It rewrites the schema, dropping the primary key and NOT NULL, which leaves a
+    # feature table the online store will reject on every later publish.
+    ("do not overwriteSchema on a table (drops primary keys)", r"overwriteSchema"),
 ]
 
 # Lab folders allowed to ship without a runnable notebook (walkthrough-only).
@@ -197,6 +212,72 @@ def check_regressions(res: Result) -> None:
         print(f"  {C.G}✓{C.X} no stale facts found ({len(REGRESSIONS)} patterns, {len(scan)} files)")
     else:
         print(f"  {C.R}✗{C.X} {hits} stale-fact hit(s)")
+
+
+# --------------------------------------------------------------------------- #
+# 3b. Postgres catalogue queries
+#
+# Two defects found by the live run, both invisible to a syntax check:
+#   * pg_stat_user_indexes was queried for tablename / indexname, which only exist
+#     on pg_tables and pg_indexes, so the statement failed at runtime.
+#   * a query over the catalogue views was left unscoped, which pulls in Lakebase's
+#     own __db_system and wal2delta objects — including a table named "tables" that
+#     breaks any attempt to size it by bare name.
+# --------------------------------------------------------------------------- #
+# Only a FROM clause is a query; docstrings and prose mention these views by name.
+STAT_VIEW_RX = re.compile(r"\bFROM\s+(pg_stat_user_(?:tables|indexes))\b", re.IGNORECASE)
+COMMENT_RX = re.compile(r"--[^\n]*|^\s*#[^\n]*", re.MULTILINE)
+WRONG_STAT_COLUMNS = ("tablename", "indexname")
+
+
+def _statement_around(text: str, index: int) -> tuple[str, int]:
+    """The SQL statement containing `index`, plus its starting line number.
+
+    Bounded by a blank line, a semicolon, or a Python triple quote, which is enough
+    to isolate one statement in both .sql files and inline notebook/backend SQL.
+    """
+    start = max(
+        text.rfind("\n\n", 0, index),
+        text.rfind(";", 0, index),
+        text.rfind('"""', 0, index),
+    )
+    ends = [e for e in (text.find(";", index), text.find('"""', index)) if e != -1]
+    end = min(ends) if ends else len(text)
+    return text[start + 1:end], text.count("\n", 0, start + 1) + 1
+
+
+def check_pg_catalog_queries(res: Result) -> None:
+    print(f"{C.B}▶ Postgres catalogue queries{C.X}")
+    problems = 0
+    scanned = 0
+    for p in sorted(walk_files(".py", ".sql")):
+        if rel(p) in REGRESSION_EXCLUDE:
+            continue
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        for m in STAT_VIEW_RX.finditer(text):
+            scanned += 1
+            stmt, line_no = _statement_around(text, m.start())
+            # Comments explain these very column names, so they must not trip the check.
+            lowered = COMMENT_RX.sub("", stmt).lower()
+            view = m.group(1)
+            if "schemaname" not in lowered:
+                problems += 1
+                res.fail(
+                    f"{rel(p)}:{line_no}: {view} query is not scoped by schemaname, so it "
+                    f"will include Lakebase's internal __db_system / wal2delta objects"
+                )
+            if view.endswith("indexes"):
+                for column in WRONG_STAT_COLUMNS:
+                    if re.search(rf"\b{column}\b", lowered):
+                        problems += 1
+                        res.fail(
+                            f"{rel(p)}:{line_no}: {view} has no {column} column "
+                            f"(use relname / indexrelname)"
+                        )
+    if problems == 0:
+        print(f"  {C.G}✓{C.X} {scanned} catalogue query/queries scoped and using valid columns")
+    else:
+        print(f"  {C.R}✗{C.X} {problems} problem(s) in catalogue queries")
 
 
 # --------------------------------------------------------------------------- #
@@ -368,6 +449,7 @@ def main() -> int:
     check_notebooks(res)
     check_structure(res)
     check_regressions(res)
+    check_pg_catalog_queries(res)
     check_links(res)
     check_backend(res)
     check_secrets(res)

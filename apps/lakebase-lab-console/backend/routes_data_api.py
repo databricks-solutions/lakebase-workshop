@@ -35,7 +35,27 @@ from .user_context import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/data-api", tags=["data-api"])
 
-_DATABASE_ID = "databricks_postgres"
+_PG_DATABASE = "databricks_postgres"
+
+
+def _database_resource_name(user: UserContext) -> str | None:
+    """Find the `.../databases/{id}` resource backing the caller's Postgres database.
+
+    The resource id is generated (`db-xxxx-yyyy`), not the Postgres database name,
+    so it has to be looked up rather than composed.
+    """
+    w = _get_workspace_client()
+    list_databases = getattr(getattr(w, "postgres", None), "list_databases", None)
+    if list_databases is None:
+        return None
+    parent = f"projects/{user.project_id}/branches/{user.branch_id}"
+    try:
+        for db in list_databases(parent=parent):
+            if getattr(getattr(db, "status", None), "postgres_database", None) == _PG_DATABASE:
+                return db.name
+    except Exception:
+        return None
+    return None
 
 
 def _resolve_data_api_url(user: UserContext) -> str | None:
@@ -46,14 +66,11 @@ def _resolve_data_api_url(user: UserContext) -> str | None:
     """
     w = _get_workspace_client()
     get_data_api = getattr(getattr(w, "postgres", None), "get_data_api", None)
-    if get_data_api is None:
+    database = _database_resource_name(user)
+    if get_data_api is None or database is None:
         return None
-    name = (
-        f"projects/{user.project_id}/branches/{user.branch_id}"
-        f"/databases/{_DATABASE_ID}/data-api"
-    )
     try:
-        data_api = get_data_api(name=name)
+        data_api = get_data_api(name=f"{database}/data-api")
     except Exception:
         return None
     url = getattr(getattr(data_api, "status", None), "url", None)
@@ -110,6 +127,8 @@ def status(user: UserContext = Depends(get_current_user)):
         except Exception:
             pass
         try:
+            # `GRANT "<sp>" TO authenticator` records the SP as the granted role and
+            # authenticator as the member, so the membership reads in that direction.
             sp_can_assume = bool(execute_query(
                 user,
                 """
@@ -117,7 +136,7 @@ def status(user: UserContext = Depends(get_current_user)):
                 FROM pg_auth_members m
                 JOIN pg_roles r   ON m.roleid = r.oid
                 JOIN pg_roles mem ON m.member = mem.oid
-                WHERE r.rolname = 'authenticator' AND mem.rolname = %s
+                WHERE r.rolname = %s AND mem.rolname = 'authenticator'
                 """,
                 (sp,),
             ))

@@ -1,8 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 00 — Set Up Your Lakebase Autoscaling Project
+# MAGIC # 00 — Set Up Your Lakebase Project
 # MAGIC
-# MAGIC This notebook creates your Lakebase Autoscaling project, waits for the
+# MAGIC This notebook creates your Lakebase project, waits for the
 # MAGIC endpoint to become active, and seeds a per-user schema with sample data.
 # MAGIC
 # MAGIC **Run this notebook once** before starting any of the workshop labs.
@@ -47,7 +47,7 @@
 # MAGIC | Capability | Details |
 # MAGIC |------------|---------|
 # MAGIC | **Autoscaling Compute** | Autoscales up to 64 CU (~2 GB RAM/CU, max−min spread ≤ 16 CU); larger fixed-size computes above 64 CU |
-# MAGIC | **Scale-to-Zero** | Non-production branches suspend after inactivity |
+# MAGIC | **Scale-to-Zero** | Every branch (incl. production) suspends after inactivity; enabled by default with a 24h timeout (60s–7d) |
 # MAGIC | **Copy-on-Write Branching** | Instant isolated database clones for dev/test/CI |
 # MAGIC | **Point-in-Time Recovery** | Restore to any moment within the configured window (2–30 days, default 7) |
 # MAGIC | **OAuth Authentication** | Token-based auth via Databricks SDK (1-hour token TTL) |
@@ -57,7 +57,7 @@
 # MAGIC > **Postgres version:** this workshop provisions **PostgreSQL 17** (the current default).
 # MAGIC > **PostgreSQL 18 is also supported** — set `pg_version="18"` at create time if you want it.
 # MAGIC
-# MAGIC **Docs:** [What is Lakebase Autoscaling?](https://docs.databricks.com/aws/en/oltp/projects/about) |
+# MAGIC **Docs:** [What is Lakebase?](https://docs.databricks.com/aws/en/oltp/projects/about) |
 # MAGIC [Get started with Lakebase](https://docs.databricks.com/aws/en/oltp/projects/get-started)
 # MAGIC
 # MAGIC ### How It Fits in the Databricks Platform
@@ -67,10 +67,10 @@
 # MAGIC - **Delta Lake** stores your analytical data (OLAP)
 # MAGIC - **Lakebase** serves operational data at low latency (OLTP)
 # MAGIC - **Synced Tables** push lakehouse data into Lakebase for low-latency serving
-# MAGIC - **Lakebase Change Data Feed** *(Public Preview)* streams Lakebase changes back into Delta as a CDC change history
-# MAGIC - **Databricks Apps**, **AI agents**, and **Feature Store** all connect to Lakebase as a backend
+# MAGIC - **Lakebase CDF** *(Public Preview)* streams Lakebase changes back into Delta as a CDC change history
+# MAGIC - **Applications**, **AI agents**, and **ML models** all connect to Lakebase as a backend
 # MAGIC
-# MAGIC *Source: [What is Lakebase Autoscaling?](https://docs.databricks.com/aws/en/oltp/projects/about)*
+# MAGIC *Source: [What is Lakebase?](https://docs.databricks.com/aws/en/oltp/projects/about)*
 
 # COMMAND ----------
 
@@ -142,12 +142,17 @@ except Exception:
 
 # MAGIC %md
 # MAGIC ## Step 3: Wait for the Endpoint
-# MAGIC The production branch gets a compute endpoint automatically. We need to
-# MAGIC wait for it to become `ACTIVE` before we can connect.
+# MAGIC The production branch gets a compute endpoint automatically. We wait for it
+# MAGIC to finish provisioning — `ACTIVE`, or `IDLE` if it has scaled to zero and is
+# MAGIC waiting for a connection to wake it.
 
 # COMMAND ----------
 
-print("Waiting for production endpoint to become active...")
+print("Waiting for production endpoint to become available...")
+
+# IDLE counts as ready: a scaled-to-zero endpoint only wakes when a client connects,
+# so waiting for ACTIVE would time out on a healthy endpoint.
+READY_STATES = ("ACTIVE", "IDLE", "DEGRADED")
 
 endpoint = None
 for attempt in range(90):
@@ -158,9 +163,9 @@ for attempt in range(90):
         if endpoints:
             ep = w.postgres.get_endpoint(name=endpoints[0].name)
             state = str(getattr(ep.status, "current_state", ""))
-            if "ACTIVE" in state.upper():
+            if any(ready in state.upper() for ready in READY_STATES):
                 endpoint = ep
-                print(f"✓ Endpoint is active!")
+                print(f"✓ Endpoint is available ({state.split('.')[-1]})")
                 print(f"  Host: {ep.status.hosts.host}")
                 print(f"  Name: {ep.name}")
                 break
@@ -170,7 +175,7 @@ for attempt in range(90):
     time.sleep(5)
 
 if not endpoint:
-    raise TimeoutError("Endpoint did not become active within 7.5 minutes. Check the Lakebase UI.")
+    raise TimeoutError("Endpoint is still provisioning after 7.5 minutes. Check the Lakebase UI.")
 
 # COMMAND ----------
 
@@ -182,13 +187,35 @@ if not endpoint:
 # COMMAND ----------
 
 import psycopg
+import time
 
 host = endpoint.status.hosts.host
-cred = w.postgres.generate_database_credential(endpoint=endpoint.name)
 username = user_email
 
-params = {"host": host, "dbname": "databricks_postgres", "user": username, "password": cred.token, "sslmode": "require"}
-conn = psycopg.connect(**params)
+
+def connect_lakebase(**extra):
+    """Connect with a fresh credential, retrying while the endpoint finishes waking.
+
+    An endpoint that just reported ACTIVE can still stall a TLS handshake for a few
+    seconds. connect_timeout turns that stall into an error we can retry instead of
+    a hang that takes the Python kernel down with it.
+    """
+    global params
+    last_err = None
+    for attempt in range(3):
+        cred = w.postgres.generate_database_credential(endpoint=endpoint.name)
+        params = {"host": host, "dbname": "databricks_postgres", "user": username,
+                  "password": cred.token, "sslmode": "require", "connect_timeout": 15}
+        try:
+            return psycopg.connect(**params, **extra)
+        except psycopg.OperationalError as e:
+            last_err = e
+            print(f"  Connection attempt {attempt + 1} failed ({e}); retrying...")
+            time.sleep(3)
+    raise last_err
+
+
+conn = connect_lakebase()
 print(f"✓ Connected to Lakebase")
 
 # COMMAND ----------
@@ -219,10 +246,7 @@ print(f"✓ Schema {PG_SCHEMA} created and seeded")
 
 from psycopg.rows import dict_row
 
-cred = w.postgres.generate_database_credential(endpoint=endpoint.name)
-params["password"] = cred.token
-
-with psycopg.connect(**params, row_factory=dict_row) as verify_conn:
+with connect_lakebase(row_factory=dict_row) as verify_conn:
     with verify_conn.cursor() as cur:
         cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = %s ORDER BY table_name", [PG_SCHEMA])
         tables = [r["table_name"] for r in cur.fetchall()]
@@ -244,8 +268,13 @@ conn.close()
 # MAGIC ## Step 6: Grant the Lab Console App Access
 # MAGIC
 # MAGIC The shared Lab Console app uses a **Service Principal** (SP) to connect to
-# MAGIC every participant's Lakebase project. This step creates a PostgreSQL role
-# MAGIC for the SP and grants it access to your schema.
+# MAGIC every participant's Lakebase project. Lakebase has two independent permission
+# MAGIC layers, and the SP needs a grant in each one:
+# MAGIC
+# MAGIC | Layer | Grant | Enables |
+# MAGIC |-------|-------|---------|
+# MAGIC | **Project ACL** (control plane) | `CAN_MANAGE` on your project | Branch Manager, Compute tabs |
+# MAGIC | **PostgreSQL** (data plane) | Role + schema `GRANT` | Data Explorer, SQL playground |
 # MAGIC
 # MAGIC This is required because:
 # MAGIC - The app's SP credentials have the `postgres` OAuth scope (forwarded user tokens do not)
@@ -268,10 +297,52 @@ except Exception as e:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### 6a. Project ACL — control plane
+# MAGIC
+# MAGIC `CAN_MANAGE` on the project lets the app create and delete branches and manage
+# MAGIC computes on your behalf. Without it, the Branch Manager tab fails with
+# MAGIC *"The user is not authorized to make the request... assign the user `<sp_id>`
+# MAGIC 'Can Manage' for Database project"*.
+# MAGIC
+# MAGIC Attaching the app's `postgres` resource does **not** grant this — it only covers
+# MAGIC the data plane.
+
+# COMMAND ----------
+
+from databricks.sdk.service.iam import AccessControlRequest, PermissionLevel
+
 if sp_id:
-    cred = w.postgres.generate_database_credential(endpoint=endpoint.name)
-    params["password"] = cred.token
-    grant_conn = psycopg.connect(**params)
+    # PATCH semantics: additive, idempotent, and leaves your own CAN_MANAGE intact.
+    w.permissions.update(
+        request_object_type="database-projects",
+        request_object_id=PROJECT_ID,
+        access_control_list=[
+            AccessControlRequest(
+                service_principal_name=sp_id,
+                permission_level=PermissionLevel.CAN_MANAGE,
+            )
+        ],
+    )
+    print(f"✓ Granted CAN_MANAGE on project '{PROJECT_ID}' to SP: {sp_id}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 6b. PostgreSQL role and schema grants — data plane
+# MAGIC
+# MAGIC > **Synced tables need one more grant.** This step covers the **Postgres** data plane
+# MAGIC > for your seed schema. **Synced tables** (Reverse ETL / Feature Store labs) live in a
+# MAGIC > **Unity Catalog** schema (`main.<your_schema>`) that doesn't exist yet, and the app
+# MAGIC > discovers them via Unity Catalog **as its SP**. So those labs include a small extra
+# MAGIC > step that grants the app SP `USE CATALOG` + `USE SCHEMA` + `SELECT` on your UC schema
+# MAGIC > (see `labs/reverse-etl/` §5a). Without it, synced tables won't appear on the app's
+# MAGIC > Synced Tables page.
+
+# COMMAND ----------
+
+if sp_id:
+    grant_conn = connect_lakebase()
 
     with grant_conn.cursor() as cur:
         # The databricks_auth extension provides databricks_create_role().
@@ -350,6 +421,8 @@ print("  Lakebase project automatically.")
 # MAGIC | 8 | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
 # MAGIC | 9 | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase |
 # MAGIC | 10 | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
+# MAGIC | 11 | **Data API** | `labs/data-api/` | PostgREST REST access, OAuth bearer tokens, and row-level security |
+# MAGIC | 12 | **Lakebase Search** *(Beta)* | `labs/lakebase-search/` | Vector + keyword search with hybrid RRF ranking |
 
 # COMMAND ----------
 

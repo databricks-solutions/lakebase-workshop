@@ -206,7 +206,6 @@ from databricks.sdk.service.postgres import (
     SyncedTable,
     SyncedTableSyncedTableSpec,
     SyncedTableSyncedTableSpecSyncedTableSchedulingPolicy,
-    NewPipelineSpec,
 )
 
 PRIMARY_KEY_COLUMNS = ["product_id"]
@@ -219,28 +218,59 @@ SYNC_MODE = "TRIGGERED"
 
 scheduling_policy = SyncedTableSyncedTableSpecSyncedTableSchedulingPolicy[SYNC_MODE]
 
-try:
-    existing = w.postgres.get_synced_table(name=f"synced_tables/{SYNCED_TABLE}")
-    print(f"Synced table already exists: {SYNCED_TABLE} (state: {existing.status.detailed_state})")
-    synced_table = existing
-except Exception:
-    synced_table = w.postgres.create_synced_table(
-        synced_table=SyncedTable(
-            spec=SyncedTableSyncedTableSpec(
-                branch=f"projects/{PROJECT_ID}/branches/production",
-                postgres_database="databricks_postgres",
+
+def _sattr(obj, *path, default=None):
+    """Safely walk nested attributes; returns default if any hop is None/missing.
+
+    The synced-table object returned by get_synced_table may have `spec` or
+    `status` unset depending on its lifecycle state, so guard every access.
+    """
+    for name in path:
+        if obj is None:
+            return default
+        obj = getattr(obj, name, None)
+    return obj if obj is not None else default
+
+
+def _get_synced():
+    try:
+        return w.postgres.get_synced_table(name=f"synced_tables/{SYNCED_TABLE}")
+    except Exception:
+        return None
+
+
+synced_table = _get_synced()
+
+if synced_table is not None:
+    # Idempotent re-run: the synced table already exists, so reuse it.
+    state = _sattr(synced_table, "status", "detailed_state", default="unknown")
+    mode = _sattr(synced_table, "spec", "scheduling_policy")
+    print(f"Synced table already exists: {SYNCED_TABLE} (state: {state})")
+    print(f"  Existing mode: {mode or 'n/a'}. To change the mode, delete it first (see cleanup).")
+else:
+    try:
+        # create_database_objects_if_missing lets Lakebase auto-create the sync
+        # pipeline and the target Postgres schema/table — no NewPipelineSpec needed.
+        synced_table = w.postgres.create_synced_table(
+            synced_table=SyncedTable(spec=SyncedTableSyncedTableSpec(
                 source_table_full_name=SOURCE_TABLE,
+                branch=f"projects/{PROJECT_ID}/branches/production",
                 primary_key_columns=PRIMARY_KEY_COLUMNS,
                 scheduling_policy=scheduling_policy,
-                new_pipeline_spec=NewPipelineSpec(
-                    storage_catalog=UC_CATALOG,
-                    storage_schema=UC_SCHEMA,
-                ),
-            ),
-        ),
-        synced_table_id=SYNCED_TABLE,
-    )
-    print(f"✓ Synced table created: {SYNCED_TABLE} (mode: {SYNC_MODE})")
+                postgres_database="databricks_postgres",
+                create_database_objects_if_missing=True,
+            )),
+            synced_table_id=SYNCED_TABLE,
+        ).wait()
+        print(f"✓ Synced table created: {SYNCED_TABLE} (mode: {SYNC_MODE})")
+    except Exception as e:
+        # A concurrent run may have created it between our get and create.
+        if "already exists" in str(e).lower():
+            synced_table = _get_synced()
+            state = _sattr(synced_table, "status", "detailed_state", default="unknown")
+            print(f"Synced table already exists: {SYNCED_TABLE} (state: {state})")
+        else:
+            raise
 
 # COMMAND ----------
 
@@ -250,25 +280,30 @@ except Exception:
 # COMMAND ----------
 
 status = w.postgres.get_synced_table(name=f"synced_tables/{SYNCED_TABLE}")
-print(f"State:   {status.status.detailed_state}")
-print(f"Message: {status.status.message or 'N/A'}")
+print(f"State:   {_sattr(status, 'status', 'detailed_state', default='unknown')}")
+print(f"Message: {_sattr(status, 'status', 'message') or 'N/A'}")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 4. Update Source & Trigger Re-sync
-# MAGIC Add rows to the Delta table, then trigger the pipeline again to see
-# MAGIC Reverse ETL push the changes to Lakebase.
+# MAGIC Add rows to the Delta table, then re-run the sync pipeline to push the changes
+# MAGIC to Lakebase. The cell below does this **programmatically** by starting a pipeline
+# MAGIC update — the same thing the "Sync now" button does in Catalog Explorer or the Lab
+# MAGIC Console app.
 # MAGIC
 # MAGIC How the re-sync behaves depends on the sync mode you chose above:
 # MAGIC
-# MAGIC - **Triggered** — you must manually trigger a sync (button below, Catalog Explorer,
-# MAGIC   or a Lakeflow Job). Only changed rows are propagated via CDF.
-# MAGIC - **Continuous** — changes propagate automatically within seconds. No action needed.
-# MAGIC - **Snapshot** — you must trigger a sync, and it will re-copy all data (not just changes).
+# MAGIC - **Triggered** — the cell starts a pipeline update; only changed rows are propagated via CDF.
+# MAGIC - **Continuous** — changes propagate automatically within seconds; no trigger needed.
+# MAGIC - **Snapshot** — the cell starts a pipeline update that re-copies **all** data (not just changes).
+# MAGIC
+# MAGIC A synced table can only run one update at a time. If a sync is already in progress
+# MAGIC (including the initial sync right after creation), the trigger is skipped — wait for
+# MAGIC it to finish (check with cell 3), then re-run this cell.
 # MAGIC
 # MAGIC **Using your own data?** Make a change to your source table (insert, update,
-# MAGIC or delete), then trigger a sync from Catalog Explorer → Synced Tables tab.
+# MAGIC or delete) before running the cell so you can see the change propagate.
 
 # COMMAND ----------
 
@@ -286,26 +321,113 @@ if not USE_OWN_DATA:
     """)
     print("✓ New rows upserted into sample table.")
 else:
-    print("Make a change to your source table, then trigger a re-sync.")
+    print("Make a change to your source table before running this cell.")
 
 if SYNC_MODE == "CONTINUOUS":
-    print("Continuous mode — changes will propagate automatically within seconds.")
+    print("Continuous mode — changes propagate automatically within seconds. No trigger needed.")
 else:
-    print(f"{SYNC_MODE.title()} mode — trigger a sync from Catalog Explorer → Synced Tables tab, or schedule via a Lakeflow Job.")
+    # Triggered / Snapshot: start a pipeline update programmatically.
+    # The synced table exposes its managed pipeline via status.pipeline_id.
+    synced = w.postgres.get_synced_table(name=f"synced_tables/{SYNCED_TABLE}")
+    pipeline_id = _sattr(synced, "status", "pipeline_id")
+
+    if not pipeline_id:
+        print(f"Pipeline not ready yet (state: {_sattr(synced, 'status', 'detailed_state', default='unknown')}).")
+        print("Wait for the initial sync to finish (re-run cell 3), then re-run this cell.")
+    else:
+        try:
+            w.pipelines.start_update(pipeline_id=pipeline_id)
+            print(f"✓ {SYNC_MODE.title()} sync triggered (pipeline {pipeline_id}).")
+            print("  Track progress in cell 3, or in Catalog Explorer → your synced table → Overview.")
+        except Exception as e:
+            msg = str(e).lower()
+            if any(k in msg for k in ("already", "in progress", "active", "running")):
+                print("A sync update is already running — let it finish (cell 3), then re-run this cell.")
+            else:
+                raise
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Grant Service Principal Access (for App)
+# MAGIC ## 5. Grant the Lab Console App Access (two layers)
 # MAGIC
-# MAGIC If you plan to deploy the Lab Console app, its Service Principal needs
-# MAGIC explicit access to synced tables. **Synced tables are special:** they are
-# MAGIC owned by the internal `databricks_writer_` role (the sync pipeline manages
-# MAGIC them), **not** by you. A plain `GRANT ALL ON ALL TABLES` run as a normal
-# MAGIC user will silently miss them.
+# MAGIC If you plan to view this synced table in the **Lab Console app**, the app's
+# MAGIC Service Principal (SP) needs access at **two layers**:
 # MAGIC
-# MAGIC Per the docs, the **`databricks_superuser`** grants read access to another
-# MAGIC identity. Connect as the `databricks_superuser` and run:
+# MAGIC 1. **Unity Catalog (control plane)** — so the app can *discover, list, and trigger*
+# MAGIC    the synced table. The app lists synced tables via `w.tables.list(main, <schema>)`
+# MAGIC    and resolves the sync pipeline through Unity Catalog, all **as the SP**. Setup
+# MAGIC    Step 6 only grants Postgres access, so without a UC grant the SP can't see your
+# MAGIC    schema and the table **won't appear in the app** (and the app's "Sync now" button
+# MAGIC    can't find the pipeline).
+# MAGIC 2. **Postgres (data plane)** — so the app (or psql) can *read the synced rows*.
+# MAGIC    Synced tables are special: they're owned by the internal `databricks_writer_`
+# MAGIC    role, **not** by you, so a plain `GRANT ALL ON ALL TABLES` silently misses them.
+# MAGIC
+# MAGIC ### 5a. Unity Catalog grant (run as you — you own the schema)
+# MAGIC
+# MAGIC The cell below looks up the Lab Console app's SP and grants it `USE CATALOG` on
+# MAGIC `main` plus `USE SCHEMA` + `SELECT` on your lab schema, so the app can see and
+# MAGIC trigger the synced table.
+
+# COMMAND ----------
+
+from databricks.sdk.service.catalog import PermissionsChange, Privilege, SecurableType
+
+APP_NAME = "lakebase-lab-console"
+
+try:
+    app_info = w.apps.get(name=APP_NAME)
+    app_sp = getattr(app_info, "effective_service_principal_client_id", None) or app_info.service_principal_client_id
+
+    # securable_type must be the enum's .value: the SDK interpolates this argument
+    # straight into the request path and the enum is not a str subclass, so passing
+    # the member itself sends its Python repr and the API rejects the call.
+    # USE CATALOG on the parent catalog so the SP can traverse into the schema.
+    w.grants.update(
+        securable_type=SecurableType.CATALOG.value,
+        full_name=UC_CATALOG,
+        changes=[PermissionsChange(principal=app_sp, add=[Privilege.USE_CATALOG])],
+    )
+    # USE SCHEMA + SELECT so the SP can list and read tables (incl. the synced table).
+    w.grants.update(
+        securable_type=SecurableType.SCHEMA.value,
+        full_name=f"{UC_CATALOG}.{UC_SCHEMA}",
+        changes=[PermissionsChange(principal=app_sp, add=[Privilege.USE_SCHEMA, Privilege.SELECT])],
+    )
+    print(f"✓ Granted UC access to the Lab Console SP ({app_sp}) on {UC_CATALOG}.{UC_SCHEMA}")
+
+    # Reading a synced table also reads its managed sync pipeline, so UC grants alone
+    # leave the app's Synced Tables page empty with a pipeline permission error.
+    if pipeline_id:
+        from databricks.sdk.service.pipelines import (
+            PipelineAccessControlRequest, PipelinePermissionLevel,
+        )
+
+        w.pipelines.update_permissions(
+            pipeline_id=pipeline_id,
+            access_control_list=[
+                PipelineAccessControlRequest(
+                    service_principal_name=app_sp,
+                    permission_level=PipelinePermissionLevel.CAN_VIEW,
+                )
+            ],
+        )
+        print(f"✓ Granted CAN_VIEW on sync pipeline {pipeline_id} to the same SP")
+    print("  The synced table will now appear on the app's Synced Tables page.")
+except Exception as e:
+    if "does not exist" in str(e).lower() or "not found" in str(e).lower():
+        print(f"App '{APP_NAME}' not deployed yet — skip this step now and re-run after deploying the Lab Console.")
+    else:
+        raise
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 5b. Postgres read grant (run as `databricks_superuser`)
+# MAGIC
+# MAGIC To let the SP (or any identity) **read the synced rows** over Postgres, connect
+# MAGIC as the `databricks_superuser` and run:
 # MAGIC
 # MAGIC ```sql
 # MAGIC -- Read access to the synced-table schema and table (run as databricks_superuser)
@@ -323,6 +445,21 @@ else:
 # MAGIC ```
 # MAGIC
 # MAGIC > **Docs:** [Synced tables — Ownership and permissions](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#ownership-and-permissions)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 6. Clean Up (Optional)
+# MAGIC
+# MAGIC Deleting the synced table drops the managed pipeline and the Postgres table.
+# MAGIC Do this if you want to **re-create the table in a different sync mode** (the mode
+# MAGIC is fixed at creation) or to free up the synced-table storage quota.
+
+# COMMAND ----------
+
+# UNCOMMENT TO DELETE THE SYNCED TABLE:
+# w.postgres.delete_synced_table(name=f"synced_tables/{SYNCED_TABLE}")
+# print(f"✓ Deleted synced table: {SYNCED_TABLE}")
 
 # COMMAND ----------
 

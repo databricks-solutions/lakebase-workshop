@@ -71,7 +71,7 @@ export default function HighAvailabilityPage() {
         <div className="metric-card">
           <div className="metric-icon"><Database size={18} /></div>
           <div className="metric-value">{topo?.read_replica_count ?? '--'}</div>
-          <div className="metric-label">Read Replicas</div>
+          <div className="metric-label">Read-only Endpoints</div>
         </div>
         <div className="metric-card">
           <div className="metric-icon"><Activity size={18} /></div>
@@ -108,7 +108,7 @@ export default function HighAvailabilityPage() {
                   <td>
                     {e.is_primary
                       ? <span className="badge badge-success">Primary</span>
-                      : <span className="badge badge-info">Read Replica</span>}
+                      : <span className="badge badge-info">Read-only</span>}
                   </td>
                   <td className="td-mono-xs">{(e.endpoint_type || '').replace(/^.*\./, '') || '--'}</td>
                   <td><span className={`badge ${cleanState(e.state).includes('ACTIVE') ? 'badge-success' : 'badge-warning'}`}>{cleanState(e.state)}</span></td>
@@ -152,8 +152,8 @@ export default function HighAvailabilityPage() {
           <div className="flow-arrow"><ChevronRight size={32} /></div>
           <div className="flow-box">
             <div style={{ marginBottom: 8 }}><Server size={28} style={{ color: 'var(--blue)' }} /></div>
-            <div className="flow-box-title">Standby / Replica</div>
-            <div className="flow-box-subtitle">Promoted on failure</div>
+            <div className="flow-box-title">Secondary</div>
+            <div className="flow-box-subtitle">Promoted on failover</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
@@ -162,8 +162,8 @@ export default function HighAvailabilityPage() {
             <span>With HA enabled, a standby in another availability zone takes over automatically if the primary fails. The endpoint host stays stable; clients reconnect and continue.</span>
           </div>
           <div className="info-box info">
-            <span style={{ fontWeight: 600 }}>Read replicas vs. standalone read compute:</span>
-            <span>A read replica shares the branch's storage and serves read-only queries close to real time. A standalone read-only compute is a separate endpoint you size independently. Use replicas to scale reads without impacting write throughput.</span>
+            <span style={{ fontWeight: 600 }}>Secondaries vs. standalone read replicas:</span>
+            <span>HA <strong>secondaries</strong> participate in failover and can serve reads via the primary&apos;s <code>-ro</code> host. <strong>Standalone read replicas</strong> are separate endpoints (up to 6/branch), sized independently, support scale-to-zero, and are eventually consistent — but are not promoted on failover. Both read from the same storage, so no extra storage cost.</span>
           </div>
           <div className="info-box warning">
             <span style={{ fontWeight: 600 }}>Configuration:</span>

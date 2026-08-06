@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
-import { Activity, Database, Server, RefreshCw, Table, Cpu, Clock, AlertCircle } from '../icons'
+import { Activity, Database, Server, RefreshCw, Table, Cpu, Clock, AlertCircle, ExternalLink } from '../icons'
 import LabBanner from '../LabBanner'
 
 export default function ObservabilityPage() {
@@ -123,6 +123,9 @@ export default function ObservabilityPage() {
         </button>
         <button className={`tab-btn ${tab === 'statements' ? 'active' : ''}`} onClick={() => { setTab('statements'); loadActivity() }}>
           Top Queries
+        </button>
+        <button className={`tab-btn ${tab === 'platform' ? 'active' : ''}`} onClick={() => setTab('platform')}>
+          Platform Monitoring
         </button>
       </div>
 
@@ -387,6 +390,55 @@ export default function ObservabilityPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Platform Monitoring (Lakebase UI) ── */}
+      {tab === 'platform' && (
+        <>
+          <div className="card">
+            <div className="card-header">
+              <h3><Activity size={16} /> Beyond pg_stat: Lakebase platform monitoring</h3>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12, lineHeight: 1.6 }}>
+              The tabs above read Postgres&apos; own <code>pg_stat</code> views live. Lakebase also
+              captures your project&apos;s telemetry as Delta tables in Unity Catalog and layers
+              managed tooling on top — configured in the <strong>Lakebase UI</strong>, not here.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="info-box info">
+                <span style={{ fontWeight: 600 }}>Metrics dashboard:</span>
+                <span>System and database metrics (CPU, RAM, connections, database size, query throughput) over time. Open your project&apos;s <strong>Monitoring</strong> tab in the Lakebase UI.</span>
+              </div>
+              <div className="info-box info">
+                <span style={{ fontWeight: 600 }}>OpenTelemetry export:</span>
+                <span>A managed collector exports metrics (prefixed <code>lakebase_</code>) and Postgres logs to any OTLP backend — Grafana, New Relic, Datadog, Honeycomb. Configure under project <strong>Settings → Integrations</strong> (or Monitoring → Export telemetry).</span>
+              </div>
+              <div className="info-box info">
+                <span style={{ fontWeight: 600 }}>Genie (AI troubleshooting):</span>
+                <span>Ask about a slow query or capacity issue in plain language. Genie grounds its answers in your telemetry Delta tables plus live compute state and walks you through a fix.</span>
+              </div>
+              <div className="info-box info">
+                <span style={{ fontWeight: 600 }}>Insights:</span>
+                <span>A background agent reviews your telemetry on a schedule and surfaces issues and early warnings proactively. Hand any finding off with <strong>Fix with Genie</strong>. See the <strong>Insights</strong> tab in Monitoring.</span>
+              </div>
+              <div className="info-box warning">
+                <span style={{ fontWeight: 600 }}>Setup:</span>
+                <span>Genie and Insights require an observability configuration that captures telemetry to Unity Catalog (a workspace admin enables the Advanced Postgres Telemetry preview). There&apos;s no separate charge — it counts toward ingestion, storage, and Genie usage you already pay for.</span>
+              </div>
+            </div>
+            <div className="btn-row" style={{ marginTop: 14, flexWrap: 'wrap' }}>
+              <a className="btn btn-secondary btn-sm" href="https://docs.databricks.com/aws/en/oltp/projects/monitor" target="_blank" rel="noopener noreferrer">
+                <ExternalLink size={13} /> Observability overview
+              </a>
+              <a className="btn btn-secondary btn-sm" href="https://docs.databricks.com/aws/en/oltp/projects/opentelemetry" target="_blank" rel="noopener noreferrer">
+                <ExternalLink size={13} /> OpenTelemetry export
+              </a>
+              <a className="btn btn-secondary btn-sm" href="https://docs.databricks.com/aws/en/oltp/projects/ai-assisted-troubleshooting" target="_blank" rel="noopener noreferrer">
+                <ExternalLink size={13} /> Genie & Insights
+              </a>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

@@ -56,9 +56,10 @@ export default function SyncStatus({ config }) {
           <div>
             <h2>Synced Tables & Data Sync</h2>
             <p>
-              Bidirectional data sync between Unity Catalog and Lakebase. Push Delta tables
-              into Lakebase for OLTP access via <strong>synced tables</strong> (Reverse ETL), or sync
-              Lakebase changes back to the Lakehouse for analytics.
+              Move data between Unity Catalog and Lakebase. <strong>Synced tables</strong> (Reverse ETL)
+              continuously push Delta tables into Lakebase for fast OLTP reads — a one-way sync. A
+              separate Public Preview feature streams Lakebase changes back to the Lakehouse as Delta,
+              shown further down.
             </p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={loadSyncedTables} disabled={loading}>
@@ -85,30 +86,24 @@ export default function SyncStatus({ config }) {
         ) : syncedTables.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><RefreshCw size={36} /></div>
-            <p>No synced tables found. Create one using the Reverse ETL lab notebook at <code style={{ color: 'var(--accent)' }}>labs/reverse-etl/</code>.</p>
+            <p>No synced tables yet — this is expected until you run the Reverse ETL lab. Create one from the lab notebook at <code style={{ color: 'var(--accent)' }}>labs/reverse-etl/</code>, then refresh to see its sync status here.</p>
             <div className="code-block" style={{ marginTop: 16, textAlign: 'left', maxWidth: 600, margin: '16px auto' }}>{`from databricks.sdk.service.postgres import (
     SyncedTable, SyncedTableSyncedTableSpec,
     SyncedTableSyncedTableSpecSyncedTableSchedulingPolicy,
-    NewPipelineSpec,
 )
 
 w = WorkspaceClient()
 w.postgres.create_synced_table(
-    synced_table=SyncedTable(
-        spec=SyncedTableSyncedTableSpec(
-            branch="projects/<project_id>/branches/production",
-            postgres_database="databricks_postgres",
-            source_table_full_name="<catalog>.<schema>.<table>",
-            primary_key_columns=["id"],
-            scheduling_policy=SyncedTableSyncedTableSpecSyncedTableSchedulingPolicy.TRIGGERED,
-            new_pipeline_spec=NewPipelineSpec(
-                storage_catalog="<catalog>",
-                storage_schema="<schema>",
-            ),
-        ),
-    ),
+    synced_table=SyncedTable(spec=SyncedTableSyncedTableSpec(
+        source_table_full_name="<catalog>.<schema>.<table>",
+        branch="projects/<project_id>/branches/production",
+        primary_key_columns=["id"],
+        scheduling_policy=SyncedTableSyncedTableSpecSyncedTableSchedulingPolicy.TRIGGERED,
+        postgres_database="databricks_postgres",
+        create_database_objects_if_missing=True,
+    )),
     synced_table_id="<catalog>.<schema>.<table>_synced",
-)`}</div>
+).wait()`}</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

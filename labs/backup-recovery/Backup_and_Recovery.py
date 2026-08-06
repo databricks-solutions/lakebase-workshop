@@ -280,7 +280,7 @@ recovery_conn.close()
 # MAGIC
 # MAGIC | Scenario | Recommended Approach |
 # MAGIC |----------|---------------------|
-# MAGIC | **Before a schema migration** | Create a snapshot branch (instant, free until divergence) |
+# MAGIC | **Before a schema migration** | Create a snapshot branch (instant; shares storage until data diverges) |
 # MAGIC | **Accidental DELETE/UPDATE** | PITR to the second before the mistake |
 # MAGIC | **Testing destructive operations** | Create a work branch, test there, delete when done |
 # MAGIC | **Compliance / audit retention** | Set the history window to its 30-day maximum at the project level |

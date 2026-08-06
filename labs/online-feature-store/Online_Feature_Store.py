@@ -28,7 +28,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "databricks-feature-engineering>=0.13.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-feature-engineering>=0.13.0" "psycopg[binary]>=3.0" --quiet
 
 # COMMAND ----------
 
@@ -40,7 +40,21 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+from importlib.metadata import version
+
 from databricks.feature_engineering import FeatureEngineeringClient
+
+# The install cell above does not pin databricks-sdk on purpose. Requesting it
+# alongside databricks-feature-engineering sends pip's resolver into a backtracking
+# loop and leaves the environment in a state where restartPython never returns, so
+# the SDK arrives as a feature-engineering dependency and is checked here instead.
+_sdk_version = version("databricks-sdk")
+if tuple(int(p) for p in _sdk_version.split(".")[:2]) < (0, 81):
+    raise RuntimeError(
+        f"databricks-sdk {_sdk_version} is too old for the Lakebase project APIs. "
+        "Install 0.81.0 or newer in its own cell, then re-run this notebook."
+    )
+print(f"✓ databricks-sdk {_sdk_version}")
 
 fe = FeatureEngineeringClient()
 print(f"✓ Feature Engineering client initialized")
@@ -126,7 +140,33 @@ data = [
 
 features_df = spark.createDataFrame(data, schema=schema)
 
-if spark.catalog.tableExists(FEATURE_TABLE):
+def has_primary_key(table: str) -> bool:
+    cat, sch, tbl = table.split(".")
+    return spark.sql(f"""
+        SELECT 1
+        FROM {cat}.information_schema.table_constraints
+        WHERE table_schema = '{sch}'
+          AND table_name = '{tbl}'
+          AND constraint_type = 'PRIMARY KEY'
+    """).count() > 0
+
+
+table_ready = spark.catalog.tableExists(FEATURE_TABLE)
+
+# Publishing to an online store requires a primary key. A table left behind by an
+# earlier run can be missing one, and no amount of re-publishing will fix that, so
+# rebuild it here instead of failing later.
+if table_ready and not has_primary_key(FEATURE_TABLE):
+    print(f"⚠ {FEATURE_TABLE} has no primary key — rebuilding it...")
+    try:
+        w.feature_store.delete_online_table(online_table_name=ONLINE_TABLE)
+        print(f"  dropped dependent online table {ONLINE_TABLE}")
+    except Exception:
+        pass
+    spark.sql(f"DROP TABLE {FEATURE_TABLE}")
+    table_ready = False
+
+if table_ready:
     print(f"Feature table already exists: {FEATURE_TABLE}")
 else:
     fe.create_table(
@@ -162,8 +202,9 @@ if total != distinct:
         .filter("_rn = 1")
         .drop("_rn")
     )
-    deduped.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(FEATURE_TABLE)
-    spark.sql(f"ALTER TABLE {FEATURE_TABLE} SET TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')")
+    # A data-only overwrite: replacing the schema here would silently drop the
+    # primary key and the online store would refuse the table on the next publish.
+    deduped.write.format("delta").mode("overwrite").saveAsTable(FEATURE_TABLE)
     new_count = spark.sql(f"SELECT COUNT(*) AS n FROM {FEATURE_TABLE}").first()["n"]
     print(f"✓ Deduplicated: {total} → {new_count} rows")
 else:
@@ -216,27 +257,93 @@ print(f"  Capacity: {online_store.capacity}")
 
 # COMMAND ----------
 
+import time
+
 try:
-    ot = w.online_tables.get(name=ONLINE_TABLE)
+    # Published tables live behind the synced-table API; the Online Tables API
+    # rejects anything in a Lakebase project.
+    ot = w.postgres.get_synced_table(name=f"synced_tables/{ONLINE_TABLE}")
     state = str(getattr(getattr(ot, "status", None), "detailed_state", "")).upper()
     if "FAILED" in state or "ERROR" in state:
         print(f"⚠ Online table in error state ({state}) — deleting and re-creating...")
         w.feature_store.delete_online_table(online_table_name=ONLINE_TABLE)
-        import time; time.sleep(5)
+        time.sleep(5)
 except Exception:
     pass
 
-fe.publish_table(
-    online_store=online_store,
-    source_table_name=FEATURE_TABLE,
-    online_table_name=ONLINE_TABLE,
-)
+
+def publish_with_retry(attempts: int = 6, wait_s: int = 30) -> None:
+    """Publish, tolerating a destination table that is still being torn down.
+
+    Deleting an online table returns before its Postgres table is actually gone, so
+    a publish that follows a delete can be told the destination already exists.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            fe.publish_table(
+                online_store=online_store,
+                source_table_name=FEATURE_TABLE,
+                online_table_name=ONLINE_TABLE,
+            )
+            return
+        except Exception as e:
+            if "already exists" not in str(e).lower() or attempt == attempts:
+                raise
+            print(f"  destination still being cleaned up — retrying in {wait_s}s "
+                  f"(attempt {attempt}/{attempts})")
+            time.sleep(wait_s)
+
+
+publish_with_retry()
 
 print(f"✓ Feature table published to online store")
 print(f"  Source table:  {FEATURE_TABLE}")
 print(f"  Online table:  {ONLINE_TABLE}")
 print(f"  Online store:  {ONLINE_STORE_NAME}")
 print(f"  Publish mode:  TRIGGERED (default)")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Let the Lab Console see the published table
+# MAGIC
+# MAGIC Publishing creates a synced table backed by its own pipeline, and reading that
+# MAGIC table reads the pipeline too. The Lab Console runs as a service principal, so
+# MAGIC without `CAN_VIEW` on the pipeline its Feature Store page stays empty even
+# MAGIC though the publish succeeded.
+
+# COMMAND ----------
+
+from databricks.sdk.service.pipelines import (
+    PipelineAccessControlRequest, PipelinePermissionLevel,
+)
+
+try:
+    app_info = w.apps.get(name="lakebase-lab-console")
+    app_sp = (getattr(app_info, "effective_service_principal_client_id", None)
+              or app_info.service_principal_client_id)
+    published = w.postgres.get_synced_table(name=f"synced_tables/{ONLINE_TABLE}")
+    publish_pipeline = getattr(getattr(published, "status", None), "pipeline_id", None)
+
+    if publish_pipeline:
+        w.pipelines.update_permissions(
+            pipeline_id=publish_pipeline,
+            access_control_list=[
+                PipelineAccessControlRequest(
+                    service_principal_name=app_sp,
+                    permission_level=PipelinePermissionLevel.CAN_VIEW,
+                )
+            ],
+        )
+        print(f"✓ Granted CAN_VIEW on publish pipeline {publish_pipeline} to {app_sp}")
+        print("  The online table will now appear on the app's Feature Store page.")
+    else:
+        print("Published table reports no pipeline yet — re-run this cell shortly.")
+except Exception as e:
+    if "does not exist" in str(e).lower() or "not found" in str(e).lower():
+        print("Lab Console not deployed yet — re-run this cell after deploying it.")
+    else:
+        raise
 
 # COMMAND ----------
 
@@ -339,26 +446,36 @@ print(f"✓ Merged 2 customers into {FEATURE_TABLE} (total rows: {count})")
 
 # COMMAND ----------
 
-fe.publish_table(
-    online_store=online_store,
-    source_table_name=FEATURE_TABLE,
-    online_table_name=ONLINE_TABLE,
-)
+publish_with_retry()
 print("✓ Re-published with updated features")
 print("  The TRIGGERED mode incrementally syncs only the new/changed rows.")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. Feature Serving Endpoints
+# MAGIC ## 7. Where Lakebase ends — and what comes next (optional)
+# MAGIC
+# MAGIC **You've now completed the Lakebase-relevant scope of this lab.** Your
+# MAGIC features live in your Lakebase project and are queryable over PostgreSQL
+# MAGIC with sub-millisecond latency. In the **Lab Console → Feature Store →
+# MAGIC Online Tables** tab, `customer_features_online` now appears with its
+# MAGIC state, source table, and primary key.
+# MAGIC
+# MAGIC Everything below is an **optional Feature Serving follow-on** and is **out
+# MAGIC of scope for Lakebase enablement** — it belongs to the Feature Engineering /
+# MAGIC Model Serving product surfaces that sit *on top of* Lakebase. No
+# MAGIC `FeatureSpec`, `FeatureLookup`, or Feature Serving endpoint is created by
+# MAGIC this workshop, and none is required for the Lab Console app to work.
 # MAGIC
 # MAGIC To serve features to real-time applications (recommendation engines, fraud
-# MAGIC detection, personalization), create a
-# MAGIC **[Feature Serving endpoint](https://docs.databricks.com/aws/en/machine-learning/feature-store/feature-function-serving)**.
-# MAGIC The endpoint handles feature lookups against the online store automatically.
+# MAGIC detection, personalization) *without a model*, you would create a
+# MAGIC **[Feature Serving endpoint](https://docs.databricks.com/aws/en/machine-learning/feature-store/feature-function-serving)**
+# MAGIC backed by a `FeatureSpec`. The endpoint resolves feature lookups against
+# MAGIC the online store (your Lakebase project) automatically.
 # MAGIC
 # MAGIC ```python
-# MAGIC # Example — create a feature serving endpoint
+# MAGIC # OPTIONAL — Feature Serving follow-on, NOT part of the Lakebase lab.
+# MAGIC # Create a FeatureSpec, then a serving endpoint that reads from Lakebase.
 # MAGIC from databricks.feature_engineering import FeatureEngineeringClient, FeatureLookup
 # MAGIC
 # MAGIC fe = FeatureEngineeringClient()
@@ -391,6 +508,12 @@ print("  The TRIGGERED mode incrementally syncs only the new/changed rows.")
 # MAGIC **Important:** Use `delete_online_table` from the SDK — do not use `DROP TABLE`
 # MAGIC in SQL, as that [leaves orphaned data](https://docs.databricks.com/aws/en/machine-learning/feature-store/online-feature-store#delete-an-online-table)
 # MAGIC in the Lakebase instance.
+# MAGIC
+# MAGIC A publish that fails partway leaves the same kind of orphan: the destination
+# MAGIC table is created in a database named after the catalog (`main`), not in
+# MAGIC `databricks_postgres`, and every later publish then refuses the name. If you
+# MAGIC get "destination table already exists", connect to the `main` database and
+# MAGIC drop `<your_schema>.customer_features_online` there.
 # MAGIC
 # MAGIC > **Note:** We do **not** delete the Lakebase project here — it's shared with
 # MAGIC > the other workshop labs. The project cleanup is handled in

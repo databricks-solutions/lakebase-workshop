@@ -116,11 +116,12 @@ FROM pg_tables
 WHERE schemaname = current_schema()
 ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC;
 
--- Index usage
+-- Index usage. Note the column names here: pg_stat_user_indexes exposes relname /
+-- indexrelname, not the tablename / indexname you get from pg_tables and pg_indexes.
 SELECT
     schemaname,
-    tablename,
-    indexname,
+    relname as table_name,
+    indexrelname as index_name,
     idx_scan as times_used,
     pg_size_pretty(pg_relation_size(indexrelid)) as index_size
 FROM pg_stat_user_indexes

@@ -49,6 +49,9 @@ Thumbs.db
 
 .cursor/
 
+# Live validation harness output (workspace hosts, run URLs, lab stdout).
+.validation-reports/
+
 *.log
 
 DESIGN.md
