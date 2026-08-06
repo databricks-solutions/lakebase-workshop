@@ -64,19 +64,21 @@ for ep_summary in endpoints:
 # MAGIC ## 2. CU Sizing Reference
 # MAGIC
 # MAGIC A **CU (Compute Unit)** provides **~2 GB of RAM** and a proportional amount of CPU.
-# MAGIC Max connections grow with CU size (up to ~10,000 per instance at the largest sizes).
+# MAGIC Max connections grow with CU size.
 # MAGIC
 # MAGIC | CU | RAM | Max Connections* | Use Case |
 # MAGIC |----|-----|-----------------|----------|
-# MAGIC | 0.5 | ~1 GB | ~104 | Dev/test, minimal traffic |
-# MAGIC | 1 | ~2 GB | ~209 | Light workloads |
-# MAGIC | 4 | ~8 GB | ~839 | Small production apps |
-# MAGIC | 8 | ~16 GB | ~1,678 | Medium production |
-# MAGIC | 16 | ~32 GB | ~3,357 | High-throughput apps |
-# MAGIC | 32 | ~64 GB | ~4,000 | Large production |
-# MAGIC | 64 | ~128 GB | — | **Maximum autoscale** |
+# MAGIC | 0.5 | ~1 GB | 105 | Dev/test, minimal traffic |
+# MAGIC | 1 | ~2 GB | 218 | Light workloads |
+# MAGIC | 4 | ~8 GB | 894 | Small production apps |
+# MAGIC | 8 | ~16 GB | 1,795 | Medium production |
+# MAGIC | 16 | ~32 GB | 3,597 | High-throughput apps |
+# MAGIC | 32 | ~64 GB | 3,993 | Large production |
+# MAGIC | 64 | ~128 GB | 3,993 | **Maximum autoscale** |
 # MAGIC
-# MAGIC \*Connection counts are approximate and set by the compute size; confirm the current value in the Lakebase UI.
+# MAGIC \*Connections available for your workload, set by the compute size. `SHOW max_connections` in Postgres
+# MAGIC reports a higher number because it includes slots reserved for system use. Confirm current values in the
+# MAGIC [Compute specifications](https://docs.databricks.com/aws/en/oltp/projects/manage-computes) doc.
 # MAGIC
 # MAGIC **Key constraints** (per the [Autoscaling doc](https://docs.databricks.com/aws/en/oltp/projects/autoscaling)):
 # MAGIC - Autoscaling ranges up to **64 CU**; the spread `max − min` cannot exceed **16 CU** (e.g. 2–8 CU or 8–24 CU are valid; 0.5–64 CU is not).
@@ -120,16 +122,16 @@ for ep_summary in endpoints:
 # MAGIC %md
 # MAGIC ## 4. Scale-to-Zero
 # MAGIC
-# MAGIC Non-production branches can **scale to zero** after a period of inactivity.
-# MAGIC This saves cost for dev/test environments.
+# MAGIC Any branch's compute can **scale to zero** after a period of inactivity, so you pay only for active time.
 # MAGIC
-# MAGIC - **Production branch:** Scale-to-zero is **disabled** by default (always active)
-# MAGIC - **Other branches:** Suspend after configurable timeout (default: 5 minutes)
-# MAGIC - **Wake-up time:** A few hundred milliseconds when a new connection arrives
-# MAGIC - **Session reset:** Temp tables, prepared statements, and cache are cleared on wake
+# MAGIC - **Enabled by default on every branch**, including `production`, with a **24-hour** inactivity timeout.
+# MAGIC - **Configurable timeout:** anywhere from **60 seconds to 7 days** (set `suspend_timeout_duration`). For dev branches, a shorter timeout like 30 minutes saves more.
+# MAGIC - **Turn it off** for always-on latency-sensitive workloads by setting `no_suspension: true`.
+# MAGIC - **Wake-up time:** a few hundred milliseconds when a new query arrives.
+# MAGIC - **Session reset:** temp tables, prepared statements, session settings, and pooled connections reset on wake — add connection retry logic in your app.
 # MAGIC
-# MAGIC To see scale-to-zero in action, create a branch in notebook `01` and wait
-# MAGIC 5 minutes — then reconnect and notice the brief reactivation delay.
+# MAGIC To see it in action, create a dev branch, set a short timeout, wait for it to idle, then reconnect and
+# MAGIC notice the brief reactivation delay. See [Scale to zero](https://docs.databricks.com/aws/en/oltp/projects/scale-to-zero).
 
 # COMMAND ----------
 

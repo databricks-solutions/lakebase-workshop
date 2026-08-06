@@ -16,14 +16,20 @@
 # MAGIC **Docs:** [Connect an application](https://docs.databricks.com/aws/en/oltp/projects/connect-application) |
 # MAGIC [Databricks Apps tutorial](https://docs.databricks.com/aws/en/oltp/projects/tutorial-databricks-apps-autoscaling)
 # MAGIC
-# MAGIC **What the Lab Console includes:**
+# MAGIC **What the Lab Console includes** (one page per lab):
 # MAGIC - Branch Manager — create/delete branches from the UI
-# MAGIC - Autoscaling Dashboard — resize compute and monitor CU ranges
-# MAGIC - Load Tester — generate synthetic traffic and stream live metrics
-# MAGIC - Data Playground — CRUD operations, audit log viewer
-# MAGIC - Reverse ETL — check synced table status
-# MAGIC - API Tester — raw SQL execution against any branch
-# MAGIC - Agent Memory — session/message management UI
+# MAGIC - Autoscaling & Compute — resize compute and monitor CU ranges
+# MAGIC - Autoscale Demo — generate synthetic traffic and stream live metrics
+# MAGIC - High Availability — inspect compute topology, failover, and read replicas
+# MAGIC - Data Operations — CRUD, JSONB/array queries, audit log viewer
+# MAGIC - Synced Tables — check Reverse ETL synced-table status
+# MAGIC - Feature Store — online stores and feature specs backed by Lakebase
+# MAGIC - Lakebase Search — vector, keyword (BM25), and hybrid search
+# MAGIC - Observability — pg_stat views plus platform monitoring pointers
+# MAGIC - Auth & Security — connection details, roles, and permission layers
+# MAGIC - Backup & Recovery — snapshots and point-in-time recovery
+# MAGIC - Data API / Console API Tester — REST and raw SQL against any branch
+# MAGIC - Agent Memory — session/message and long-term memory UI
 
 # COMMAND ----------
 
@@ -139,6 +145,10 @@ print(f"SP Name:      {getattr(app_info, 'service_principal_name', 'N/A')}")
 # MAGIC PostgreSQL role and grants `CONNECT` + `CREATE` on the database. But you still
 # MAGIC need to grant access to **your specific schema** and its tables.
 # MAGIC
+# MAGIC The resource attachment covers layer 2 only. Layer 1 — creating branches,
+# MAGIC managing computes — needs a separate `CAN_MANAGE` grant on the project ACL,
+# MAGIC applied in the cell below before the SQL grants.
+# MAGIC
 # MAGIC **Use this pattern when:** You want an app to read/write data in a schema
 # MAGIC it didn't create itself.
 # MAGIC
@@ -160,8 +170,26 @@ print(f"SP Name:      {getattr(app_info, 'service_principal_name', 'N/A')}")
 
 # COMMAND ----------
 
+from databricks.sdk.service.iam import AccessControlRequest, PermissionLevel
+
+# Layer 1 — project ACL. PATCH semantics: additive and idempotent.
+w.permissions.update(
+    request_object_type="database-projects",
+    request_object_id=PROJECT_ID,
+    access_control_list=[
+        AccessControlRequest(
+            service_principal_name=sp_id,
+            permission_level=PermissionLevel.CAN_MANAGE,
+        )
+    ],
+)
+print(f"✓ Granted CAN_MANAGE on project '{PROJECT_ID}' to SP: {sp_id}")
+
+# COMMAND ----------
+
 import psycopg
 
+# Layer 2 — PostgreSQL role and schema grants.
 endpoints = list(w.postgres.list_endpoints(
     parent=f"projects/{PROJECT_ID}/branches/production"
 ))

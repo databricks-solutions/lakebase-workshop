@@ -150,7 +150,7 @@ export default function AuthPage() {
                 <span className="detail-value detail-value-mono">{connInfo.database}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">Username</span>
+                <span className="detail-label">Username (app SP)</span>
                 <span className="detail-value detail-value-mono" style={{ fontSize: 11 }}>{connInfo.username}</span>
               </div>
               <div className="detail-row">
@@ -160,6 +160,9 @@ export default function AuthPage() {
               <div className="detail-row">
                 <span className="detail-label">Password</span>
                 <span className="detail-value" style={{ fontSize: 11, color: 'var(--text-muted)' }}>OAuth token (1-hour TTL)</span>
+              </div>
+              <div className="info-box info" style={{ marginTop: 10 }}>
+                <span>This is how the <strong>app</strong> connects — as its Service Principal. From your own psql/DBeaver session, connect with <strong>your Databricks username</strong> (your email) and a token you generate, not this SP id.</span>
               </div>
             </div>
           ) : (

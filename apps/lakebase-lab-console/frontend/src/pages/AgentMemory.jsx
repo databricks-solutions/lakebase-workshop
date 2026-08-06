@@ -20,14 +20,18 @@ function ShortTermPanel() {
   const chatRef = useRef(null)
 
   const loadSessions = () => {
-    api.listSessions().then(setSessions).catch(() => {})
+    api.listSessions()
+      .then(setSessions)
+      .catch((e) => setError(`Failed to load threads: ${e.message}`))
   }
 
   useEffect(loadSessions, [])
 
   useEffect(() => {
     if (!activeSession) return
-    api.getMessages(activeSession).then(setMessages)
+    api.getMessages(activeSession)
+      .then(setMessages)
+      .catch((e) => setError(`Failed to load messages: ${e.message}`))
   }, [activeSession])
 
   useEffect(() => {
@@ -183,11 +187,15 @@ function LongTermPanel() {
   const [error, setError] = useState(null)
 
   const loadMemories = () => {
-    api.listMemories(filterUser || undefined).then(setMemories).catch(() => {})
+    api.listMemories(filterUser || undefined)
+      .then(setMemories)
+      .catch((e) => setError(`Failed to load memories: ${e.message}`))
   }
 
   const loadUsers = () => {
-    api.listMemoryUsers().then(setUsers).catch(() => {})
+    api.listMemoryUsers()
+      .then(setUsers)
+      .catch((e) => setError(`Failed to load users: ${e.message}`))
   }
 
   useEffect(() => { loadMemories(); loadUsers() }, [])

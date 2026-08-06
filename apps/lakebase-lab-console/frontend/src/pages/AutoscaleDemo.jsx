@@ -148,8 +148,9 @@ export default function AutoscaleDemo() {
       <div className="page-header">
         <h2>Autoscale Demo</h2>
         <p>
-          Send traffic spikes to Lakebase and watch compute respond in real time.
-          The autoscaler adjusts CU allocation based on workload demand.
+          Send traffic spikes to Lakebase and watch it respond in real time through endpoint
+          state changes, connection counts, and latency. The autoscaler adjusts CU between your
+          configured min and max based on demand — see the exact live CU in the Lakebase Metrics dashboard.
         </p>
       </div>
       <LabBanner pageId="autoscale" />
@@ -197,12 +198,12 @@ export default function AutoscaleDemo() {
         {ep.min_cu != null && (
           <div style={{ padding: '0 4px' }}>
             <div className="cu-gauge">
-              <div className="cu-gauge-fill" style={{ width: `${((ep.max_cu || 0) / 64) * 100}%` }} />
+              <div className="cu-gauge-fill" style={{ width: `${((ep.max_cu || 0) / 112) * 100}%` }} />
             </div>
             <div className="cu-gauge-labels">
               <span>0 CU</span>
               <span>{ep.min_cu}-{ep.max_cu} CU configured</span>
-              <span>64 CU max</span>
+              <span>112 CU max</span>
             </div>
           </div>
         )}

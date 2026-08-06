@@ -16,8 +16,14 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 
 @router.post("/seed")
 def seed_tables(user: UserContext = Depends(get_current_user)):
-    """Create workshop tables if they don't exist (idempotent)."""
-    seed_file = Path(__file__).parent.parent.parent / "bootstrap" / "seed.sql"
+    """Create workshop tables if they don't exist (idempotent).
+
+    Prefer the canonical repo-root ``bootstrap/seed.sql`` when present (local dev
+    and notebooks). Deployed Databricks Apps bundle only the app directory, so
+    fall back to the in-app ``_INLINE_SEED`` there.
+    """
+    # backend/ -> lakebase-lab-console/ -> apps/ -> repo root
+    seed_file = Path(__file__).resolve().parents[3] / "bootstrap" / "seed.sql"
     schema = get_schema(user)
 
     if seed_file.exists():
@@ -28,16 +34,49 @@ def seed_tables(user: UserContext = Depends(get_current_user)):
     sql = raw.replace("{schema}", schema)
 
     results = []
-    for stmt in sql.split(";"):
-        stmt = stmt.strip()
-        if not stmt or stmt.startswith("--"):
+    for stmt in _split_sql_statements(sql):
+        # Drop full-line comments so a leading comment doesn't mask the statement.
+        cleaned = "\n".join(
+            line for line in stmt.splitlines() if not line.strip().startswith("--")
+        ).strip()
+        if not cleaned:
             continue
         try:
-            execute_write(user, stmt)
-            results.append({"sql": stmt[:80], "status": "ok"})
+            execute_write(user, cleaned)
+            results.append({"sql": cleaned[:80], "status": "ok"})
         except Exception as e:
-            results.append({"sql": stmt[:80], "status": "error", "error": str(e)})
+            results.append({"sql": cleaned[:80], "status": "error", "error": str(e)})
     return {"seeded": True, "schema": schema, "statements": len(results), "results": results}
+
+
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL into statements on semicolons, respecting ``$$``-quoted blocks.
+
+    The canonical bootstrap/seed.sql defines a plpgsql trigger function whose body
+    is dollar-quoted and contains semicolons; a naive ``split(';')`` would break
+    it into invalid fragments. This splitter ignores semicolons inside ``$$``.
+    """
+    statements: list[str] = []
+    buf: list[str] = []
+    in_dollar = False
+    i = 0
+    n = len(sql)
+    while i < n:
+        if sql[i : i + 2] == "$$":
+            in_dollar = not in_dollar
+            buf.append("$$")
+            i += 2
+            continue
+        ch = sql[i]
+        if ch == ";" and not in_dollar:
+            statements.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    if buf:
+        statements.append("".join(buf))
+    return statements
 
 
 _INLINE_SEED = """
@@ -276,7 +315,10 @@ def list_audit_log(table_name: str | None = None, limit: int = 50, user: UserCon
 @router.get("/stats")
 def table_stats(user: UserContext = Depends(get_current_user)):
     """Get row counts for all workshop tables."""
-    tables = ["products", "events", "agent_sessions", "agent_messages", "audit_log"]
+    tables = [
+        "products", "events", "agent_sessions", "agent_messages",
+        "agent_memory_store", "audit_log",
+    ]
     stats = {}
     for t in tables:
         try:

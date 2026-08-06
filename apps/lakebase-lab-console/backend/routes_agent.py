@@ -11,6 +11,32 @@ from .user_context import UserContext, get_current_user
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 
+def _agent_query(user: UserContext, sql: str, params: tuple | None = None) -> list[dict]:
+    """Run a read query for the agent routes, mapping common DB errors to a
+    clear, actionable message instead of a generic 500.
+
+    The Agent Memory page previously swallowed list errors and always showed an
+    empty state; surfacing these hints makes setup/grant problems diagnosable.
+    """
+    try:
+        return execute_query(user, sql, params)
+    except Exception as e:
+        msg = str(e).lower()
+        if "does not exist" in msg or "undefinedtable" in msg:
+            raise HTTPException(
+                400,
+                "Agent memory tables are missing. Run 00_Setup_Lakebase_Project (or "
+                "the Data Ops 'Seed tables' action) to create them in your schema.",
+            )
+        if "permission denied" in msg:
+            raise HTTPException(
+                403,
+                "The app's Service Principal cannot read the agent memory tables. "
+                "Re-run the setup grant step (Step 6b) for your project.",
+            )
+        raise HTTPException(500, "Failed to load agent memory data.")
+
+
 # ── Short-term memory models ─────────────────────────────────────────
 
 
@@ -57,7 +83,7 @@ class MemoryInfo(BaseModel):
 def list_sessions(limit: int = 20, user: UserContext = Depends(get_current_user)):
     """List recent agent sessions with message counts."""
     limit = clamp_limit(limit, default=20, maximum=200)
-    rows = execute_query(
+    rows = _agent_query(
         user,
         """
         SELECT s.session_id, s.agent_name, s.metadata, s.created_at::text as created_at,
@@ -78,19 +104,26 @@ def list_sessions(limit: int = 20, user: UserContext = Depends(get_current_user)
 
 @router.post("/sessions", response_model=SessionInfo)
 def create_session(req: CreateSessionRequest, user: UserContext = Depends(get_current_user)):
-    """Create a new agent session."""
+    """Create a new agent session.
+
+    Stamps the caller's identity into ``metadata.user`` so threads created here
+    match the ``metadata->>'user'`` convention the Agent Memory lab uses to list
+    a user's threads (see labs/agentic-memory/Agent_Memory.py).
+    """
     session_id = str(uuid.uuid4())[:12]
     import json
+
+    metadata = {"user": user.email, **req.metadata}
 
     execute_write(
         user,
         "INSERT INTO agent_sessions (session_id, agent_name, metadata) VALUES (%s, %s, %s)",
-        (session_id, req.agent_name, json.dumps(req.metadata)),
+        (session_id, req.agent_name, json.dumps(metadata)),
     )
     return SessionInfo(
         session_id=session_id,
         agent_name=req.agent_name,
-        metadata=req.metadata,
+        metadata=metadata,
         created_at="now",
         message_count=0,
     )
@@ -111,7 +144,7 @@ def delete_session(session_id: str, user: UserContext = Depends(get_current_user
 @router.get("/sessions/{session_id}/messages")
 def get_messages(session_id: str, user: UserContext = Depends(get_current_user)):
     """Get all messages in a session, ordered chronologically."""
-    return execute_query(
+    return _agent_query(
         user,
         """
         SELECT message_id, session_id, role, content, metadata,
@@ -160,7 +193,7 @@ def list_memories(user_id: str | None = None, limit: int = 50, user: UserContext
     """List long-term memories, optionally filtered by user_id."""
     limit = clamp_limit(limit, default=50, maximum=500)
     if user_id:
-        rows = execute_query(
+        rows = _agent_query(
             user,
             """
             SELECT memory_id, user_id, topic, memory, metadata,
@@ -173,7 +206,7 @@ def list_memories(user_id: str | None = None, limit: int = 50, user: UserContext
             (user_id, limit),
         )
     else:
-        rows = execute_query(
+        rows = _agent_query(
             user,
             """
             SELECT memory_id, user_id, topic, memory, metadata,
@@ -224,7 +257,7 @@ def delete_memory(memory_id: int, user: UserContext = Depends(get_current_user))
 @router.get("/memories/users")
 def list_memory_users(user: UserContext = Depends(get_current_user)):
     """List all users who have long-term memories."""
-    return execute_query(
+    return _agent_query(
         user,
         """
         SELECT user_id, COUNT(*) as memory_count,

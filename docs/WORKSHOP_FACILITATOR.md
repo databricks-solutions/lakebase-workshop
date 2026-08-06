@@ -234,12 +234,20 @@ For a guided workshop, direct participants to specific paths based on the timing
 4. Run a transaction, show atomicity
 5. Key talking point: *"Full PostgreSQL — JSONB, arrays, triggers, transactions."*
 
+#### Data API — PostgREST REST access
+
+1. In the app's API Tester, keep the default **Data API** tab (the Console API is only the Lab Console's own backend)
+2. Run a `GET` against a table — show it's PostgREST over HTTPS with an OAuth bearer token, no backend to run
+3. Point out the `authenticator` role and row-level security (RLS) from the Data API lab
+4. Key talking point: *"Lakebase ships a built-in REST layer — expose Postgres tables as secured HTTPS endpoints with zero app code."*
+
 #### Agentic Memory
 
 1. Create a session, store a multi-turn conversation
 2. Query conversation history
-3. Show cross-session JSONB queries
-4. Key talking point: *"Persistent agent memory with no extra infrastructure."*
+3. Show cross-session JSONB queries and long-term key-value memory
+4. Note the app's Agent Memory page and the lab share the same tables (`agent_sessions`, `agent_messages`, `agent_memory_store`) — rows created in one appear in the other
+5. Key talking point: *"Persistent agent memory with no extra infrastructure — short-term threads and long-term knowledge in plain Postgres."*
 
 #### App Deployment (capstone)
 
@@ -271,11 +279,13 @@ For a guided workshop, direct participants to specific paths based on the timing
 #### Online Feature Store
 
 1. Create a feature table with primary key and CDF
-2. Provision an online store — show that it creates a Lakebase Autoscaling instance
+2. Register an online store on your existing Lakebase Autoscaling project (`fe.get_online_store(name=PROJECT_ID)`) — no separate instance to provision
 3. Publish features, add new rows, re-publish
 4. Connect directly to the online store via PostgreSQL
-5. Key talking point: *"Your online feature store IS Lakebase — same managed PostgreSQL, optimized for ML serving."*
-6. **Note:** Requires DBR 16.4 LTS ML or serverless. Online store provisioning takes 2–4 minutes.
+5. In the app's Feature Store page, show your project listed as the online store; the published **online table** (`customer_features_online`) appears in the **Online Tables** tab only after you publish
+6. Key talking point: *"Your online feature store IS Lakebase — the same managed PostgreSQL project, optimized for ML serving."*
+7. **Scope note:** The lab stops at publishing an online table into Lakebase and querying it over PostgreSQL. `FeatureSpec` / `FeatureLookup` / Feature Serving endpoints are an optional Feature Serving follow-on that sits on top of Lakebase — out of scope, and not needed for the app.
+8. **Note:** Requires DBR 16.4 LTS ML or serverless. First publish into a new online store can take a few minutes.
 
 ---
 
@@ -293,9 +303,9 @@ For a guided workshop, direct participants to specific paths based on the timing
 
 1. Show the production endpoint's current CU range
 2. Walk through the CU sizing reference table
-3. Explain the max 8 CU spread constraint
-4. Mention scale-to-zero for non-production branches
-5. Key talking point: *"You pay for what you use. Dev branches cost nothing when idle."*
+3. Explain the max 16 CU spread constraint
+4. Mention scale-to-zero — on by default for every branch (incl. production) with a 24h timeout, tunable 60s–7 days
+5. Key talking point: *"You pay for what you use. Any branch scales to zero when idle."*
 
 #### Authentication — Tokens & Permissions
 
@@ -319,7 +329,8 @@ For a guided workshop, direct participants to specific paths based on the timing
 2. Walk through table-level activity (seq scans vs index scans)
 3. Show index usage — point out any unused indexes
 4. Show active connections
-5. Key talking point: *"All standard PostgreSQL observability — plus the workspace monitoring UI."*
+5. Point to platform monitoring in the app's Platform tab: the Metrics dashboard, OpenTelemetry metrics export (Beta), Genie for AI-assisted troubleshooting, and Insights
+6. Key talking point: *"All standard PostgreSQL observability — plus a metrics dashboard, OTel export, and Genie in the Lakebase UI."*
 
 ## Architecture
 
@@ -367,13 +378,15 @@ Databricks Workspace
 | Branch Manager (`#branches`) | Create/delete branches | `labs/development-experience/Branches_and_Environments` |
 | Autoscale Demo (`#autoscale`) | Load testing + live CU tracking | `labs/development-experience/Autoscaling_and_Compute` |
 | Compute (`#compute`) | Resize CU ranges | `labs/development-experience/Autoscaling_and_Compute` |
-| Observability (`#observability`) | pg_stat views, index stats | `labs/observability/Observability_and_Monitoring` |
-| Reverse ETL (`#sync`) | Synced table status | `labs/reverse-etl/Reverse_ETL` |
-| Feature Store (`#feature-store`) | Online store status | `labs/online-feature-store/Online_Feature_Store` |
-| Agent Memory (`#agent`) | Session/message management | `labs/agentic-memory/Agent_Memory` |
+| High Availability (`#ha`) | Compute topology, failover, read replicas | `labs/development-experience/High_Availability_and_Replicas` |
+| Observability (`#observability`) | pg_stat views, index stats, platform monitoring | `labs/observability/Observability_and_Monitoring` |
+| Synced Tables (`#sync`) | Reverse ETL synced-table status | `labs/reverse-etl/Reverse_ETL` |
+| Feature Store (`#feature-store`) | Online store + published online tables status | `labs/online-feature-store/Online_Feature_Store` |
+| Lakebase Search (`#search`) | Vector, keyword (BM25), hybrid search | `labs/lakebase-search/Lakebase_Search` |
+| Agent Memory (`#agent`) | Session/message + long-term memory | `labs/agentic-memory/Agent_Memory` |
 | Auth & Permissions (`#auth`) | OAuth tokens, roles, grants | `labs/authentication/Authentication_and_Permissions` |
 | Backup & Recovery (`#backup`) | Snapshots, PITR | `labs/backup-recovery/Backup_and_Recovery` |
-| API Tester (`#api`) | Raw SQL execution | *(tools-only, no notebook)* |
+| API Tester (`#api`) | Data API (PostgREST) primary; Console API + raw SQL | `labs/data-api/Data_API` |
 
 ### Shared App with Per-User Routing (SP Auth + Email Routing)
 
@@ -439,11 +452,50 @@ Lakebase-Workshop/
 ├── bootstrap/
 │   ├── seed.sql                                # Demo schema DDL (used by notebook 00)
 │   └── requirements.txt                        # Python deps for local use
+├── scripts/                                    # Validation (see "Validating a change")
+│   ├── validate_workshop.py                    # Static checks, no workspace needed
+│   ├── validate_all.py                          # Full sweep: static + live labs + app
+│   ├── run_labs_live.py                         # Execute every lab, assert it worked
+│   ├── lab_manifest.py                          # Declares each lab's expectations
+│   ├── reset_lab_state.py                       # Teardown so runs are repeatable
+│   └── validate_app.py                          # Exercise the Lab Console API
 └── docs/
     ├── WORKSHOP_FACILITATOR.md
-    ├── PERMISSIONS.md
-    └── CREDITS.md
+    └── PERMISSIONS.md
 ```
+
+## Validating a Change
+
+Before a workshop — and before committing changes to notebooks, labs, or the Lab
+Console — validate at two levels.
+
+**Static (seconds, no workspace).** Compiles every notebook cell, checks lab
+structure and links, greps for stale facts and secrets:
+
+```bash
+python3 scripts/validate_workshop.py --full
+```
+
+**Live (needs a workspace with Lakebase).** Deploys the bundle and runs every lab
+as a serverless notebook job, then asserts the job succeeded, the expected output
+appeared, and the resulting state is really present when queried independently.
+Finally it calls the Lab Console API to confirm each lab's result shows up in the
+app the participants use:
+
+```bash
+python3 scripts/validate_all.py            # static -> reset -> labs -> app
+python3 scripts/validate_all.py --fast     # skip the slow provisioning labs
+python3 scripts/validate_all.py --twice    # run twice and diff, proving repeatability
+```
+
+Reports are written to `.validation-reports/` (gitignored) as JSON plus Markdown.
+Each lab's expectations live in `scripts/lab_manifest.py`; add an entry there when
+you add a lab. Labs whose feature is disabled on the project (Lakebase Search, the
+Data API) are reported as skipped rather than failed.
+
+Run `python3 scripts/run_labs_live.py --preflight-only` on the workshop day to
+confirm the project's history retention, endpoint sizing, HA topology, and feature
+flags match what the labs teach.
 
 ## Troubleshooting
 
@@ -453,7 +505,8 @@ Lakebase-Workshop/
 | Foundation hangs on "Waiting for endpoint" | Endpoint creation can take 2–3 minutes. Let it run. |
 | "password authentication failed" | Token expired (1h TTL). Re-run the connection cell. |
 | Lab Console shows "Project Not Found" | The user hasn't run `00_Setup_Lakebase_Project` yet. |
-| Lab Console shows "permission denied for schema" | The user hasn't granted the SP access (Step 6 in setup notebook). Run the App Deployment lab. |
+| Lab Console shows "permission denied for schema" | The user hasn't granted the SP access (Step 6b in setup notebook). Run the App Deployment lab. |
+| Branch Manager / Compute: "not authorized... assign the user `<id>` 'Can Manage' for Database project" | The SP lacks the project ACL. Re-run Step 6a of the setup notebook, or grant it directly: `databricks api patch /api/2.0/permissions/database-projects/<project_id> --json '{"access_control_list":[{"service_principal_name":"<sp_client_id>","permission_level":"CAN_MANAGE"}]}'`. Note the API takes the readable `project_id`, not the UUID in the error. |
 | Lab Console shows "Loading..." forever | Check `/api/dbtest` — likely a token or endpoint issue |
 | Lab Console shows wrong user | Hard-refresh the browser to pick up fresh headers |
 | "does not have required scopes: postgres" | The app's postgres resource is not attached. Re-run `setup.sh` with option 2, or attach manually in the Apps UI. |

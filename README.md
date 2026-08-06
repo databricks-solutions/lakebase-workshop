@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Lakebase Workshop
 
 A hands-on workshop for exploring **Databricks Lakebase** -- a fully managed PostgreSQL database that runs inside your Databricks workspace.
@@ -36,10 +35,13 @@ You're all set. Pick any lab from the list below and dive in. Each lab is self-c
 
 Before you begin, make sure you have:
 
-- **A Databricks workspace** with Lakebase enabled (your facilitator will confirm this)
-- **Python 3** installed on your computer (most Macs have this already -- check by running `python3 --version` in your terminal)
+- **Your own Databricks workspace** with Lakebase enabled
+- **Python 3.11+** on your computer (`python3 --version`)
+- **Databricks CLI ≥ 0.294.0**, logged in via `databricks auth login` (do this ahead of time)
 
-The setup script handles everything else, including the Databricks CLI.
+Share this with participants ahead of time: **[Prerequisites Guide](docs/PREREQUISITES.md)** (GitHub access, bring-your-own workspace, and auth login).
+
+On workshop day, `setup.sh` installs the remaining Python packages into your active environment (no separate venv required).
 
 ## Choose a Lab
 
@@ -123,36 +125,6 @@ The setup notebook (Step 2 above) automatically grants the app access to your da
 
 If you're running this workshop for a group, see the [Facilitator Guide](docs/WORKSHOP_FACILITATOR.md) for deployment instructions, timing options, demo scripts, and detailed troubleshooting.
 
-## Credits
-
-See [docs/CREDITS.md](docs/CREDITS.md) for attribution.
-=======
-# REPO NAME 
-
-```
-Placeholder
-
-Fill here a description at a functional level - what is this content doing
-```
-
-## Video Overview
-
-Include a GIF overview of what your project does. Use a service like Quicktime, Zoom or Loom to create the video, then convert to a GIF.
-
-
-## Installation
-
-Include details on how to use and install this content. 
-
-## How to get help
-
-Databricks support doesn't cover this content. For questions or bugs, please open a GitHub issue and the team will help on a best effort basis.
-
-
 ## License
 
-&copy; 2025 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License [https://databricks.com/db-license-source].  All included or referenced third party libraries are subject to the licenses set forth below.
-
-| library                                | description             | license    | source                                              |
-|----------------------------------------|-------------------------|------------|-----------------------------------------------------|
->>>>>>> solutions/main
+See [LICENSE.md](LICENSE.md).

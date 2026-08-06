@@ -398,6 +398,9 @@ export default function DataPlayground() {
             <div className="card-header">
               <h3><Search size={16} /> JSONB & Array Query Examples</h3>
             </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12, lineHeight: 1.6 }}>
+              This playground is <strong>read-only</strong> — only <code>SELECT</code>/<code>WITH</code> run here (queries execute in a read-only transaction). Use the Products and Events tabs, or the Data Operations lab notebook, for inserts, updates, and transactions.
+            </p>
             <div className="btn-row" style={{ flexWrap: 'wrap', marginBottom: 16 }}>
               {JSONB_QUERIES.map((q, i) => (
                 <button key={i} className="btn btn-secondary btn-sm" onClick={() => { setCustomQuery(q.sql); runQuery(q.sql) }}>

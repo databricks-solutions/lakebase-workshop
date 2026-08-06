@@ -4,7 +4,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from databricks.sdk import WorkspaceClient
 
-from .db import get_schema
+from .db import get_project_id, get_schema
 from .security import log_and_sanitize
 from .user_context import UserContext, get_current_user
 
@@ -15,12 +15,6 @@ router = APIRouter(prefix="/api/online-tables", tags=["online-tables"])
 
 def _get_client() -> WorkspaceClient:
     return WorkspaceClient()
-
-
-def _get_user_identifier(user: UserContext) -> str:
-    """Extract user identifier for filtering online stores."""
-    local_part = user.email.split("@")[0]
-    return local_part.replace(".", "_").replace("-", "_").lower()
 
 
 def _safe_attr(obj, attr, default=None):
@@ -40,62 +34,51 @@ def _try_rest(w, method, path, body=None):
 
 @router.get("/stores")
 def list_online_stores(mine_only: bool = Query(True), user: UserContext = Depends(get_current_user)):
-    """List database instances, optionally filtered to the current user."""
-    result = []
+    """Return the caller's Lakebase project as the online store.
+
+    The Online Feature Store lab reuses the participant's existing Lakebase
+    (Autoscaling) project as the online store — ``fe.get_online_store(name=PROJECT_ID)``
+    — rather than provisioning a separate Database Instance. So the store to show
+    is the caller's own project, discovered from their UserContext. This is why
+    the previous ``list_database_instances`` approach showed "no stores": the
+    project isn't a Provisioned instance.
+
+    ``mine_only`` is retained for API compatibility; the returned store is always
+    the caller's own project.
+    """
     w = _get_client()
-    user_id = _get_user_identifier(user)
+    project_id = get_project_id(user)
+    branch_id = user.branch_id
 
+    store = {
+        "name": project_id,
+        "store_id": project_id,
+        "state": "",
+        "capacity": "",
+        "creator": user.email,
+        "read_write_dns": "",
+        "creation_time": "",
+    }
+
+    # Read/write endpoint host for the caller's branch (same discovery db.py uses).
     try:
-        if hasattr(w, "database") and hasattr(w.database, "list_database_instances"):
-            for inst in w.database.list_database_instances():
-                info = {
-                    "name": _safe_attr(inst, "name", ""),
-                    "store_id": _safe_attr(inst, "name", ""),
-                    "state": str(_safe_attr(inst, "state", "")),
-                    "capacity": str(_safe_attr(inst, "capacity", "")),
-                    "creator": _safe_attr(inst, "creator", ""),
-                    "read_write_dns": _safe_attr(inst, "read_write_dns", ""),
-                    "creation_time": str(_safe_attr(inst, "creation_time", "")),
-                }
-                result.append(info)
+        endpoints = list(
+            w.postgres.list_endpoints(parent=f"projects/{project_id}/branches/{branch_id}")
+        )
+        if endpoints:
+            ep = w.postgres.get_endpoint(name=endpoints[0].name)
+            status = _safe_attr(ep, "status")
+            hosts = _safe_attr(status, "hosts")
+            store["read_write_dns"] = _safe_attr(hosts, "host", "") or ""
+            store["state"] = str(_safe_attr(status, "current_state", "") or "")
     except Exception as e:
-        logger.warning("database.list_database_instances failed: %s", e)
+        logger.warning("endpoint lookup for online store failed: %s", e)
 
-    if not result:
-        try:
-            resp = _try_rest(w, "GET", "/api/2.0/database/database-instances")
-            if resp and isinstance(resp, dict):
-                for inst in resp.get("database_instances", []):
-                    result.append({
-                        "name": inst.get("name", ""),
-                        "store_id": inst.get("name", ""),
-                        "state": inst.get("state", ""),
-                        "capacity": inst.get("capacity", ""),
-                        "creator": inst.get("creator", ""),
-                        "read_write_dns": inst.get("read_write_dns", ""),
-                        "creation_time": inst.get("creation_time", ""),
-                    })
-        except Exception as e:
-            logger.warning("REST list database instances failed: %s", e)
+    if not store["state"]:
+        # If the caller reached this route their project is reachable; treat as active.
+        store["state"] = "ACTIVE"
 
-    if mine_only and user_id and result:
-        user_parts = user_id.replace("_", "").replace("-", "").lower()
-        filtered = [
-            s for s in result
-            if _matches_user(s, user_parts, user_id)
-        ]
-        result = filtered
-
-    return result
-
-
-def _matches_user(store: dict, user_normalized: str, user_id: str) -> bool:
-    """Check if a database instance belongs to the current user."""
-    creator = (store.get("creator") or "").lower()
-    name = (store.get("name") or "").lower()
-    creator_norm = creator.replace(".", "").replace("@", "").replace("-", "").replace("_", "")
-    name_norm = name.replace(".", "").replace("-", "").replace("_", "")
-    return user_normalized in creator_norm or user_normalized in name_norm
+    return [store]
 
 
 # ── Synced Tables (Reverse ETL) ────────────────────────────────────────────
@@ -140,17 +123,20 @@ def _try_get_synced_table(w, full_name: str):
     """Probe whether a UC table is a synced table. Returns the object or None."""
     synced_name = f"synced_tables/{full_name}"
     try:
-        if hasattr(w, "database") and hasattr(w.database, "get_synced_database_table"):
-            return w.database.get_synced_database_table(name=synced_name)
-    except Exception:
-        pass
-    try:
         if hasattr(w, "postgres") and hasattr(w.postgres, "get_synced_table"):
             return w.postgres.get_synced_table(name=synced_name)
     except Exception:
         pass
     try:
-        resp = _try_rest(w, "GET", f"/api/2.0/database/synced-database-tables/{full_name}")
+        if hasattr(w, "database") and hasattr(w.database, "get_synced_database_table"):
+            return w.database.get_synced_database_table(name=synced_name)
+    except Exception:
+        pass
+    try:
+        # _try_rest logs why it failed, which is the only place the reason surfaces
+        # when the SDK calls above are swallowed. The older
+        # /database/synced-database-tables path no longer exists.
+        resp = _try_rest(w, "GET", f"/api/2.0/postgres/{synced_name}")
         if resp and isinstance(resp, dict) and resp.get("name"):
             return resp
     except Exception:
@@ -222,14 +208,22 @@ def trigger_synced_table(table_id: str, pipeline_id: str | None = None, user: Us
         raise HTTPException(500, "Failed to trigger sync")
 
 
-# ── Feature Specs (UC Online Tables) ───────────────────────────────────────
+# ── Online Tables (UC) ─────────────────────────────────────────────────────
+# Note: the route path stays /feature-specs for backward compatibility, but it
+# returns Unity Catalog *online tables* (the Lakebase-native output of
+# fe.publish_table), NOT Databricks FeatureSpec / FeatureLookup / Feature
+# Serving objects — those are Feature Serving surfaces and out of scope for the
+# Lakebase workshop.
 
 @router.get("/feature-specs")
 def list_feature_specs(user: UserContext = Depends(get_current_user)):
-    """List online table specs by scanning UC tables and probing for OT metadata.
+    """List UC online tables by scanning UC tables and probing for OT metadata.
 
-    The w.online_tables API has no list() method. We scan UC tables in the
-    configured schema and check each ending in '_online' via w.online_tables.get().
+    These are the online tables produced by fe.publish_table() into the shared
+    Lakebase project — not FeatureSpecs or FeatureLookups. Publishing into a
+    Lakebase project produces a *synced* table, and the Online Tables API refuses
+    those ("no longer available for PG instances"), so each UC table ending in
+    '_online' is probed with the synced-table API instead.
     """
     w = _get_client()
     result = []
@@ -246,24 +240,8 @@ def list_feature_specs(user: UserContext = Depends(get_current_user)):
         full_name = tbl.full_name if hasattr(tbl, "full_name") else f"{catalog}.{schema}.{tbl.name}"
         if not full_name.endswith("_online"):
             continue
-        try:
-            ot = w.online_tables.get(name=full_name)
-            if ot:
-                info = {
-                    "name": _safe_attr(ot, "name", full_name),
-                    "state": str(_safe_attr(_safe_attr(ot, "status"), "detailed_state", "")),
-                    "triggered_update_status": str(
-                        _safe_attr(_safe_attr(ot, "status"), "triggered_update_status", "")
-                    ),
-                    "source_table": _safe_attr(_safe_attr(ot, "spec"), "source_table_full_name"),
-                    "primary_key_columns": list(
-                        _safe_attr(_safe_attr(ot, "spec"), "primary_key_columns", []) or []
-                    ),
-                    "run_triggered": _safe_attr(_safe_attr(ot, "spec"), "run_triggered"),
-                    "run_continuously": _safe_attr(_safe_attr(ot, "spec"), "run_continuously"),
-                }
-                result.append(info)
-        except Exception:
-            pass
+        ot = _try_get_synced_table(w, full_name)
+        if ot:
+            result.append(_extract_synced_info(ot, full_name))
 
     return result

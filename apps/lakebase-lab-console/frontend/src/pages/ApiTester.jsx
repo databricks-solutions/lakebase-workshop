@@ -143,21 +143,21 @@ function ConsolePanel() {
 }
 
 const TARGETS = [
-  { id: 'console', label: 'Console API', Icon: Server },
   { id: 'dataapi', label: 'Data API', Icon: Database },
+  { id: 'console', label: 'Console API', Icon: Server },
 ]
 
 export default function ApiTester() {
-  const [target, setTarget] = useState('console')
+  const [target, setTarget] = useState('dataapi')
 
   return (
     <div>
       <div className="page-header">
         <h2>API Tester</h2>
         <p>
-          Send requests to two different surfaces: the <strong>Console API</strong> (the Lab Console's
-          own FastAPI backend) or the external <strong>Data API</strong> (Lakebase PostgREST, called as
-          the app Service Principal).
+          The <strong>Data API</strong> is Lakebase's built-in REST layer (PostgREST) — query your
+          Postgres tables over HTTPS with no backend to run. The <strong>Console API</strong> is this
+          Lab Console's own FastAPI backend, handy for debugging the integration.
         </p>
       </div>
 
@@ -173,7 +173,7 @@ export default function ApiTester() {
         ))}
       </div>
 
-      {target === 'console' ? <ConsolePanel /> : <DataApiPanel />}
+      {target === 'dataapi' ? <DataApiPanel /> : <ConsolePanel />}
     </div>
   )
 }

@@ -79,7 +79,7 @@ export default function FeatureStorePage() {
         <div className="metric-card">
           <div className="metric-icon"><Table size={18} /></div>
           <div className="metric-value">{featureSpecs.length}</div>
-          <div className="metric-label">Feature Specs</div>
+          <div className="metric-label">Online Tables</div>
         </div>
       </div>
 
@@ -88,7 +88,7 @@ export default function FeatureStorePage() {
           Online Stores ({onlineStores.length})
         </button>
         <button className={`tab-btn ${tab === 'features' ? 'active' : ''}`} onClick={() => setTab('features')}>
-          Feature Specs ({featureSpecs.length})
+          Online Tables ({featureSpecs.length})
         </button>
         <button className={`tab-btn ${tab === 'guide' ? 'active' : ''}`} onClick={() => setTab('guide')}>
           How It Works
@@ -166,18 +166,18 @@ fe.publish_table(
         </div>
       )}
 
-      {/* ── Feature Specs ── */}
+      {/* ── Online Tables ── */}
       {tab === 'features' && (
         <div className="card">
           <div className="card-header">
-            <h3><Table size={16} /> Unity Catalog Online Table Specs</h3>
+            <h3><Table size={16} /> Unity Catalog Online Tables</h3>
           </div>
           {loading ? (
             <div className="empty-state empty-state-compact"><p>Loading...</p></div>
           ) : featureSpecs.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon"><Table size={36} /></div>
-              <p>No online table feature specs found. These are created via the Feature Engineering client when you publish features to an online store.</p>
+              <p>No published online tables yet. Online tables appear here after you run the Online Feature Store lab, which publishes an offline feature table into your Lakebase online store via the Feature Engineering client.</p>
             </div>
           ) : (
             <table className="data-table">
@@ -224,8 +224,8 @@ fe.publish_table(
               <div className="flow-arrow"><ChevronRight size={32} /></div>
               <div className="flow-box">
                 <div style={{ marginBottom: 8 }}><Activity size={28} style={{ color: 'var(--success)' }} /></div>
-                <div className="flow-box-title">Feature Serving</div>
-                <div className="flow-box-subtitle">Low-latency lookups</div>
+                <div className="flow-box-title">PostgreSQL Serving</div>
+                <div className="flow-box-subtitle">Low-latency Lakebase lookups</div>
               </div>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.7, marginTop: 12 }}>
@@ -245,8 +245,8 @@ fe.publish_table(
                 <span>Your existing Lakebase project, reused for feature serving. No separate instance needed — feature tables coexist with your workshop data.</span>
               </div>
               <div className="info-box info">
-                <span style={{ fontWeight: 600 }}>Feature Spec:</span>
-                <span>A Unity Catalog online table definition that tracks which offline feature table is published to which online store.</span>
+                <span style={{ fontWeight: 600 }}>Online Table:</span>
+                <span>A Unity Catalog online table that tracks which offline feature table is published to which Lakebase online store. This is the Lakebase-native output of <code>publish_table</code> — no Feature Serving endpoint required.</span>
               </div>
               <div className="info-box warning">
                 <span style={{ fontWeight: 600 }}>Publish Modes:</span>

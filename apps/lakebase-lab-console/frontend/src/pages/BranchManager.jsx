@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
-import { GitBranch, Plus, Trash2, AlertCircle, X, Shield, Clock, Check, RefreshCw } from '../icons'
+import { GitBranch, Plus, Trash2, AlertCircle, X, Shield, Clock, Check, RefreshCw, ExternalLink } from '../icons'
 import LabBanner from '../LabBanner'
 
 export default function BranchManager() {
@@ -187,12 +187,49 @@ export default function BranchManager() {
 
       <div className="card">
         <div className="card-header">
-          <h3>How Branching Works</h3>
+          <h3>What is Branching?</h3>
+          <a
+            className="btn btn-secondary btn-sm"
+            href="https://docs.databricks.com/aws/en/oltp/projects/branches"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Docs <ExternalLink size={12} />
+          </a>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 14, lineHeight: 1.7 }}>
-          Lakebase branches use <strong>copy-on-write</strong> storage. Creating a branch is instant
-          and doesn't duplicate data. Changes on a branch are isolated until you manually promote them.
+          Branching in Lakebase lets you version, test, and evolve your data environment safely —
+          similar to branching your code in Git. You can instantly create isolated, fully functional
+          branches for development, experimentation, or testing schema changes, without impacting
+          production workloads.
         </p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 14, lineHeight: 1.7 }}>
+          Lakebase uses <strong>copy-on-write</strong> storage. A new branch inherits schema and data
+          from its parent via shared pointers — only modified data is stored separately. Branch
+          creation is instant, and you only pay for what actually changes.
+        </p>
+
+        <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+          Copy-on-write storage
+        </h4>
+        <div className="code-block">{`production branch                child branch (at creation)
+┌─────────────────┐       ┌─────────────────┐
+│  [Data A]       │◄──────│  → Data A       │  (shared)
+│  [Data B]       │◄──────│  → Data B       │  (shared)
+│  [Data C]       │◄──────│  → Data C       │  (shared)
+└─────────────────┘       └─────────────────┘
+
+After modifying data in child branch:
+┌─────────────────┐       ┌─────────────────┐
+│  [Data A]       │◄──────│  → Data A       │  (shared)
+│  [Data B]       │       │  [Data B']      │  (changed)
+│  [Data C]       │◄──────│  → Data C       │  (shared)
+└─────────────────┘       └─────────────────┘
+                          Only changed data is stored separately`}</div>
+
+        <h4 style={{ fontSize: 13, fontWeight: 600, margin: '16px 0 8px', color: 'var(--text-primary)' }}>
+          Project hierarchy
+        </h4>
         <div className="code-block">{`Project
   └── production (default, protected)
         ├── lab-feature-a (TTL: 24h)

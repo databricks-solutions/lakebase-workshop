@@ -2,10 +2,15 @@
 
 from fastapi import APIRouter, Depends
 
-from .db import execute_query
+from .db import execute_query, get_schema
 from .user_context import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/observability", tags=["observability"])
+
+# The catalogue views below also expose Lakebase's own plumbing (__db_system,
+# wal2delta), which is neither the participant's data nor safe to size by bare
+# name: __db_system.tables would resolve against search_path and error. Every
+# query here is scoped to the caller's schema, matching the observability lab.
 
 
 @router.get("/database")
@@ -58,8 +63,9 @@ def table_stats(user: UserContext = Depends(get_current_user)):
             last_analyze::text,
             last_autoanalyze::text
         FROM pg_stat_user_tables
+        WHERE schemaname = %s
         ORDER BY n_live_tup DESC
-    """)
+    """, (get_schema(user),))
 
 
 @router.get("/indexes")
@@ -74,24 +80,30 @@ def index_stats(user: UserContext = Depends(get_current_user)):
             idx_tup_read AS tuples_read,
             idx_tup_fetch AS tuples_fetched
         FROM pg_stat_user_indexes
+        WHERE schemaname = %s
         ORDER BY idx_scan DESC
-    """)
+    """, (get_schema(user),))
 
 
 @router.get("/sizes")
 def table_sizes(user: UserContext = Depends(get_current_user)):
     """Table and index sizes."""
     return execute_query(user, """
+        WITH t AS (
+            SELECT tablename,
+                   quote_ident(schemaname) || '.' || quote_ident(tablename) AS qualified
+            FROM pg_tables
+            WHERE schemaname = %s
+        )
         SELECT
             tablename AS table_name,
-            pg_size_pretty(pg_total_relation_size(quote_ident(tablename))) AS total_size,
-            pg_size_pretty(pg_relation_size(quote_ident(tablename))) AS table_size,
-            pg_size_pretty(pg_indexes_size(quote_ident(tablename))) AS index_size,
-            pg_total_relation_size(quote_ident(tablename)) AS total_bytes
-        FROM pg_tables
-        WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-        ORDER BY pg_total_relation_size(quote_ident(tablename)) DESC
-    """)
+            pg_size_pretty(pg_total_relation_size(qualified)) AS total_size,
+            pg_size_pretty(pg_relation_size(qualified)) AS table_size,
+            pg_size_pretty(pg_indexes_size(qualified)) AS index_size,
+            pg_total_relation_size(qualified) AS total_bytes
+        FROM t
+        ORDER BY pg_total_relation_size(qualified) DESC
+    """, (get_schema(user),))
 
 
 @router.get("/connections")

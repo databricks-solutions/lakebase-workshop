@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 __pycache__/
 *.py[cod]
 *$py.class
@@ -43,11 +42,15 @@ secrets.*
 
 .DS_Store
 Thumbs.db
+.idea/
 
 .databricks/
 .bundle/
 
 .cursor/
+
+# Live validation harness output (workspace hosts, run URLs, lab stdout).
+.validation-reports/
 
 *.log
 
@@ -59,10 +62,3 @@ docs/one-pager.html
 docs/one-pager.pdf
 
 docs/CREDITS.md
-=======
-*conf*.json
-.DS_Store
-__pycache__
-.idea/
-.env
->>>>>>> solutions/main

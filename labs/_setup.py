@@ -25,8 +25,15 @@ PG_SCHEMA  = f"lakebase_lab_{_sanitize(user_email).replace('-', '_')}"
 
 _REQUIRED_TABLES = {"products", "events", "agent_sessions", "agent_messages", "agent_memory_store", "audit_log"}
 
+# An endpoint is usable once it leaves INIT. IDLE means it scaled to zero, which is
+# the normal resting state for a non-production branch and is not something to wait
+# out: an idle endpoint only wakes when a client connects, so waiting for ACTIVE here
+# would block until the timeout and then fail a branch that is perfectly healthy.
+_READY_ENDPOINT_STATES = ("ACTIVE", "IDLE", "DEGRADED")
+
+
 def wait_for_endpoint(branch="production", max_attempts=60, delay=5):
-    """Poll until the branch's primary endpoint reports ACTIVE, then return it.
+    """Poll until the branch's primary endpoint is past provisioning, then return it.
 
     Newly created branches (dev, snapshot, recovery) need a few seconds to a few
     minutes for their compute to spin up. Poll for readiness instead of guessing
@@ -39,13 +46,13 @@ def wait_for_endpoint(branch="production", max_attempts=60, delay=5):
             if endpoints:
                 ep = w.postgres.get_endpoint(name=endpoints[0].name)
                 state = str(getattr(ep.status, "current_state", "")).upper()
-                if "ACTIVE" in state:
+                if any(ready in state for ready in _READY_ENDPOINT_STATES):
                     return ep
         except Exception:
             pass
         time.sleep(delay)
     raise TimeoutError(
-        f"Endpoint for branch '{branch}' did not become active within "
+        f"Endpoint for branch '{branch}' is still provisioning after "
         f"{max_attempts * delay // 60} minutes. Check the Lakebase UI."
     )
 
@@ -61,8 +68,11 @@ def get_connection(branch="production", connect_retries=3):
     ep = w.postgres.get_endpoint(name=endpoints[0].name)
     host = ep.status.hosts.host
     cred = w.postgres.generate_database_credential(endpoint=endpoints[0].name)
+    # connect_timeout matters as much as the retry: without it a handshake against
+    # a waking endpoint can hang instead of raising, which takes the kernel with it.
     params = {"host": host, "dbname": "databricks_postgres",
               "user": user_email, "password": cred.token, "sslmode": "require",
+              "connect_timeout": 15,
               "options": f"-c search_path={PG_SCHEMA},public"}
     last_err = None
     for attempt in range(max(1, connect_retries)):

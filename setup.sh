@@ -310,8 +310,9 @@ except Exception:
     operation.wait()
     print(f"  ✓ Project created")
 
-print(f"  Waiting for production endpoint to become active...")
+print(f"  Waiting for production endpoint to become available...")
 endpoint = None
+# IDLE means scaled to zero, which only wakes on connect — treat it as ready.
 for _ in range(90):
     try:
         endpoints = list(w.postgres.list_endpoints(
@@ -320,16 +321,16 @@ for _ in range(90):
         if endpoints:
             ep = w.postgres.get_endpoint(name=endpoints[0].name)
             state = str(getattr(ep.status, "current_state", "")).upper()
-            if "ACTIVE" in state:
+            if any(ready in state for ready in ("ACTIVE", "IDLE", "DEGRADED")):
                 endpoint = ep
-                print(f"  ✓ Endpoint active: {ep.status.hosts.host}")
+                print(f"  ✓ Endpoint available ({state.split('.')[-1]}): {ep.status.hosts.host}")
                 break
     except Exception:
         pass
     time.sleep(5)
 
 if endpoint is None:
-    print("  ✗ Endpoint did not become active in time")
+    print("  ✗ Endpoint is still provisioning; check the Lakebase UI")
     sys.exit(1)
 
 print(f"  Seeding schema '{schema}'...")
@@ -494,7 +495,7 @@ grant_sp_access() {
   local schema="$2"
   local profile="$3"
 
-  step "Granting SP access to facilitator's Lakebase schema"
+  step "Granting SP access to facilitator's Lakebase project"
 
   if ! python3 -c "import databricks.sdk" &>/dev/null; then
     warn "databricks-sdk not found in local Python — installing..."
@@ -522,6 +523,26 @@ w = WorkspaceClient(profile=profile)
 app = w.apps.get(name="lakebase-lab-console")
 sp_id = getattr(app, 'effective_service_principal_client_id', None) or app.service_principal_client_id
 print(f"  SP Client ID: {sp_id}")
+
+# Control-plane ACL. Attaching the postgres resource only covers the data plane;
+# branch/endpoint management needs CAN_MANAGE on the project itself.
+from databricks.sdk.service.iam import AccessControlRequest, PermissionLevel
+
+try:
+    w.permissions.update(
+        request_object_type="database-projects",
+        request_object_id=project_id,
+        access_control_list=[
+            AccessControlRequest(
+                service_principal_name=sp_id,
+                permission_level=PermissionLevel.CAN_MANAGE,
+            )
+        ],
+    )
+    print(f"  ✓ Granted CAN_MANAGE on project '{project_id}' to SP")
+except Exception as e:
+    print(f"  ⚠ Could not grant project ACL: {e}")
+    print(f"    Branch Manager will fail until the SP has 'Can Manage' on the project.")
 
 endpoints = list(w.postgres.list_endpoints(
     parent=f"projects/{project_id}/branches/production"
@@ -605,6 +626,8 @@ echo -e "    ${CYAN} 7. labs/backup-recovery/${RESET}         PITR, snapshots, i
 echo -e "    ${CYAN} 8. labs/agentic-memory/${RESET}          Persistent AI agent memory"
 echo -e "    ${CYAN} 9. labs/online-feature-store/${RESET}    Real-time ML feature serving"
 echo -e "    ${CYAN}10. labs/app-deployment/${RESET}          Full-stack Lab Console app (capstone)"
+echo -e "    ${CYAN}11. labs/data-api/${RESET}                 PostgREST REST access, OAuth bearer tokens, RLS"
+echo -e "    ${CYAN}12. labs/lakebase-search/${RESET}          Vector + keyword search with hybrid RRF ranking (Beta)"
 echo ""
 echo -e "  ${DIM}Workspace:   $WORKSPACE_HOST${RESET}"
 echo -e "  ${DIM}Profile:     $PROFILE${RESET}"
