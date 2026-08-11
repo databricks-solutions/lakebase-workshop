@@ -157,10 +157,10 @@ See [Grant permissions programmatically](https://docs.databricks.com/aws/en/oltp
 
 ## Synced Table Permissions
 
-Synced tables (Reverse ETL) need the app SP granted at **two layers**. Both are
-required for the app's Synced Tables page to work.
+Synced tables (Reverse ETL) need the app SP granted at **three layers**. All three
+are required for the app's Synced Tables page to fully work.
 
-### Layer 1 — Unity Catalog (discovery + trigger)
+### Layer 1 — Unity Catalog (discovery)
 
 The app lists synced tables via `w.tables.list("main", "<schema>")` and resolves
 each table's sync pipeline through Unity Catalog — **all as the app SP**
@@ -186,7 +186,38 @@ The UC schema (`main.<schema>`) is created by the Reverse ETL / Feature Store la
 not by base setup — which is why this grant lives in those labs rather than
 `notebooks/00`.
 
-### Layer 2 — Postgres (read the rows)
+### Layer 2 — The sync pipeline (trigger a sync)
+
+Triggering a sync is a *separate* permission from reading the synced table. The
+"Trigger Sync" button calls `w.pipelines.start_update()` on the synced table's
+managed pipeline, and per the
+[Lakeflow pipelines ACLs](https://docs.databricks.com/aws/en/security/auth/access-control/#lakeflow-pipelines-acls)
+that requires **CAN RUN**. `CAN VIEW` lets the SP read pipeline details and sync
+status but not start an update, so the button fails with a permission error even
+though the table shows up correctly on the page:
+
+```python
+from databricks.sdk.service.pipelines import (
+    PipelineAccessControlRequest, PipelinePermissionLevel,
+)
+w.pipelines.update_permissions(
+    pipeline_id=pipeline_id,
+    access_control_list=[PipelineAccessControlRequest(
+        service_principal_name=app_sp,
+        permission_level=PipelinePermissionLevel.CAN_RUN,
+    )],
+)
+```
+
+Reverse ETL lab §5a does this alongside the UC grants. The Feature Store lab grants
+`CAN_RUN` on its publish pipeline too: the app's Feature Store page is read-only, but
+the published online table is itself a synced table, so it also appears on the Synced
+Tables page with a working "Trigger Sync" button.
+
+If a participant ran an earlier version of either lab, their SP still holds `CAN_VIEW`.
+Re-running the grant cell upgrades it in place — `update_permissions` is a PATCH.
+
+### Layer 3 — Postgres (read the rows)
 
 Synced tables are created by the Lakebase sync pipeline and are owned by the
 internal `databricks_writer_` role — **not** by the user who created them. Because

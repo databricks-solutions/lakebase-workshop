@@ -70,6 +70,9 @@ REGRESSIONS: list[tuple[str, str]] = [
     # It rewrites the schema, dropping the primary key and NOT NULL, which leaves a
     # feature table the online store will reject on every later publish.
     ("do not overwriteSchema on a table (drops primary keys)", r"overwriteSchema"),
+    # Trigger Sync calls pipelines.start_update; CAN_VIEW only reads status.
+    ("grant CAN_RUN (not CAN_VIEW) on sync pipelines the app triggers",
+     r"permission_level\s*=\s*PipelinePermissionLevel\.CAN_VIEW"),
 ]
 
 # Lab folders allowed to ship without a runnable notebook (walkthrough-only).
@@ -173,7 +176,7 @@ def check_notebooks(res: Result) -> None:
 def check_structure(res: Result) -> None:
     print(f"{C.B}▶ Lab structure{C.X}")
     labs_dir = REPO / "labs"
-    for d in sorted(p for p in labs_dir.iterdir() if p.is_dir()):
+    for d in sorted(p for p in labs_dir.iterdir() if p.is_dir() and p.name not in SKIP_DIRS):
         res.checked += 1
         name = d.name
         has_readme = (d / "README.md").is_file()

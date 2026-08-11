@@ -35,7 +35,7 @@ _READY_ENDPOINT_STATES = ("ACTIVE", "IDLE", "DEGRADED")
 def wait_for_endpoint(branch="production", max_attempts=60, delay=5):
     """Poll until the branch's primary endpoint is past provisioning, then return it.
 
-    Newly created branches (dev, snapshot, recovery) need a few seconds to a few
+    Newly created branches (dev, checkpoint, recovery) need a few seconds to a few
     minutes for their compute to spin up. Poll for readiness instead of guessing
     with a fixed sleep, which can flake on slower endpoint creation."""
     for attempt in range(max_attempts):

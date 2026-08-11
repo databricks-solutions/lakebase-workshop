@@ -169,5 +169,5 @@ conn.close()
 # MAGIC | Path | Folder | What You'll Learn |
 # MAGIC |------|--------|-------------------|
 # MAGIC | **Autoscaling & Compute** | this path | CU sizing, resize, scale-to-zero (HA shares the same autoscaling range) |
-# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | PITR, snapshots, and cross-region DR |
+# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, PITR, and cross-region DR |
 # MAGIC | **Observability** | `labs/observability/` | Monitor connections, replication delay, and query load |

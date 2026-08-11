@@ -379,7 +379,7 @@ LABS: tuple[Lab, ...] = (
         ),
         forbidden=(REPAIR_WARNING,),
         checks=(
-            sdk("snapshot branch exists", "branch_exists:lab-snapshot-pre-migration"),
+            sdk("checkpoint branch exists", "branch_exists:lab-checkpoint-pre-migration"),
             sdk("recovery branch exists", "branch_exists:lab-recovered"),
             sql(
                 "recovered branch still has the products data",
@@ -393,15 +393,15 @@ LABS: tuple[Lab, ...] = (
                 ">= 8",
             ),
         ),
-        # Deletion order matters: lab-recovered is a child of the snapshot branch and
+        # Deletion order matters: lab-recovered is a child of the checkpoint branch and
         # a branch with children cannot be deleted.
         creates=(
             "branch:lab-migration-test",
             "branch:lab-recovered",
-            "branch:lab-snapshot-pre-migration",
+            "branch:lab-checkpoint-pre-migration",
         ),
         notes="Longest of the branch labs (three branch creates plus endpoint waits). "
-        "The snapshot branch is created with no_expiry=True, so it survives forever "
+        "The checkpoint branch is created with no_expiry=True, so it survives forever "
         "unless reset removes it — the main source of drift between runs.",
     ),
     # ------------------------------------------------------------------ #

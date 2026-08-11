@@ -186,10 +186,10 @@ def build_checks(ctx: h.Ctx) -> list[ApiCheck]:
         ApiCheck("Compute topology for production", "/api/compute/topology/production",
                  after="ha"),
         # --- backup --------------------------------------------------------- #
-        ApiCheck("Backup page sees the snapshot branch", "/api/branches",
+        ApiCheck("Backup page sees the checkpoint branch", "/api/branches",
                  assertion=list_contains(
-                     lambda b: b.get("branch_id") == "lab-snapshot-pre-migration",
-                     "branch lab-snapshot-pre-migration"), after="backup"),
+                     lambda b: b.get("branch_id") == "lab-checkpoint-pre-migration",
+                     "branch lab-checkpoint-pre-migration"), after="backup"),
         # --- reverse ETL / feature store -------------------------------------- #
         ApiCheck("Online stores include the participant project", "/api/online-tables/stores",
                  assertion=non_empty_list, after="reverse_etl"),

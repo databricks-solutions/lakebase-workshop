@@ -257,7 +257,7 @@ export default function Dashboard({ onNavigate }) {
           <QuickActionCard pageId="search" Icon={Search} title="Lakebase Search" desc="Vector, keyword (BM25), and hybrid search in Postgres" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="ha" Icon={Server} title="High Availability" desc="Inspect compute topology, failover, and read replicas" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="auth" Icon={Key} title="Auth & Security" desc="OAuth credentials, JWT tokens, roles, grants, TLS & compliance" onNavigate={onNavigate} config={ctx?.config} />
-          <QuickActionCard pageId="backup" Icon={Shield} title="Backup & Recovery" desc="Branch snapshots, PITR, disaster recovery" onNavigate={onNavigate} config={ctx?.config} />
+          <QuickActionCard pageId="backup" Icon={Shield} title="Backup & Recovery" desc="Checkpoint branches, snapshots, PITR" onNavigate={onNavigate} config={ctx?.config} />
           <QuickActionCard pageId="compute" Icon={Cpu} title="Compute Config" desc="Configure compute CU limits and view endpoints" onNavigate={onNavigate} config={ctx?.config} />
           <div className="quick-action-card-wrap">
             <button className="quick-action-card" onClick={() => onNavigate('api')} aria-label="Open API Tester">

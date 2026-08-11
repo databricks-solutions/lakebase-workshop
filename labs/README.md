@@ -14,7 +14,7 @@ Ordered from foundational to advanced:
 | 4 | [Development Experience](development-experience/) | `development-experience/` | Git-like branching, autoscaling compute, scale-to-zero, high availability + read replicas |
 | 5 | [Observability](observability/) | `observability/` | pg_stat views, index analysis, connection monitoring |
 | 6 | [Authentication, Security & Compliance](authentication/) | `authentication/` | OAuth tokens, two-layer permissions, role grants, encryption/CMK, Private Link, compliance profiles |
-| 7 | [Backup & Recovery](backup-recovery/) | `backup-recovery/` | Point-in-time recovery, branch snapshots, instant restore |
+| 7 | [Backup & Recovery](backup-recovery/) | `backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
 | 8 | [Agentic Memory](agentic-memory/) | `agentic-memory/` | Persistent AI agent memory with session/message storage |
 | 9 | [Online Feature Store](online-feature-store/) | `online-feature-store/` | Real-time ML feature serving powered by Lakebase Autoscaling |
 | 10 | [App Deployment](app-deployment/) | `app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |

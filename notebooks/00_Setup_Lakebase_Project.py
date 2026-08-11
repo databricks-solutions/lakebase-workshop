@@ -417,7 +417,7 @@ print("  Lakebase project automatically.")
 # MAGIC | 4 | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 # MAGIC | 5 | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
 # MAGIC | 6 | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
-# MAGIC | 7 | **Backup & Recovery** | `labs/backup-recovery/` | Point-in-time recovery, branch snapshots, instant restore |
+# MAGIC | 7 | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
 # MAGIC | 8 | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
 # MAGIC | 9 | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase |
 # MAGIC | 10 | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |

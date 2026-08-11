@@ -36,8 +36,8 @@ def _branch_error(e: Exception) -> HTTPException:
 class CreateBranchRequest(BaseModel):
     branch_id: str = Field(..., pattern=r"^lab-[a-z0-9-]{1,50}$")
     source_branch: str = "production"
-    # None => persistent branch (no auto-delete), matching the lab's snapshot
-    # pattern. A value creates a temporary branch that auto-deletes after N hours.
+    # None => non-expiring branch, matching the lab's checkpoint pattern. A
+    # value creates a temporary branch that auto-deletes after N hours.
     ttl_hours: int | None = Field(default=None, ge=1, le=720)
 
 
@@ -119,11 +119,15 @@ def create_branch(req: CreateBranchRequest, user: UserContext = Depends(get_curr
     project_id = get_project_id(user)
     source = f"projects/{project_id}/branches/{req.source_branch}"
 
-    # Only set a TTL when the caller asked for a temporary branch. A snapshot
-    # (ttl_hours=None) is created persistent, matching the lab's no_expiry pattern.
+    # Lakebase requires every branch to declare an expiration policy, so the
+    # no-TTL case must send no_expiry rather than omitting the field. A
+    # checkpoint branch also has to be non-expiring: you cannot create a
+    # recovery branch from a branch that has an expiration.
     spec = BranchSpec(source_branch=source)
     if req.ttl_hours is not None:
         spec.ttl = Duration(seconds=req.ttl_hours * 3600)
+    else:
+        spec.no_expiry = True
 
     try:
         result = w.postgres.create_branch(

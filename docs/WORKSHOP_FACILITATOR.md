@@ -61,7 +61,7 @@ After the foundation, participants follow a track based on their role. Each trac
 |-------|-----|----------|----------------|
 | 1 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
 | 2 | Authentication, Security & Compliance | `labs/authentication/` | OAuth tokens, roles, encryption/CMK, Private Link, compliance |
-| 3 | Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, instant restore, cross-region DR note |
+| 3 | Backup & Recovery | `labs/backup-recovery/` | Checkpoint branches, snapshots, PITR, instant restore, cross-region DR note |
 | 4 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 
 **Key narrative:** *"Fully managed PostgreSQL with Git-like branching, OAuth security, instant recovery, and native Postgres observability — all governed by Unity Catalog."*
@@ -79,7 +79,7 @@ Every lab lives directly in `labs/`. No track folder structure — tracks are a 
 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 | Authentication, Security & Compliance | `labs/authentication/` | OAuth tokens, roles, encryption/CMK, Private Link, compliance |
-| Backup & Recovery | `labs/backup-recovery/` | PITR, branch snapshots, restore, cross-region DR note |
+| Backup & Recovery | `labs/backup-recovery/` | Checkpoint branches, snapshots, PITR, restore, cross-region DR note |
 | Agentic Memory | `labs/agentic-memory/` | Persistent agent memory pattern |
 | Lakebase Search *(Beta)* | `labs/lakebase-search/` | Vector + BM25 + hybrid RRF search (enablement irreversible) |
 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
@@ -317,11 +317,14 @@ For a guided workshop, direct participants to specific paths based on the timing
 
 #### Backup & Recovery — PITR
 
-1. Create a snapshot branch (instant)
+1. Create a checkpoint branch (instant)
 2. Simulate disaster on a work branch (drop table)
-3. Recover by branching from the snapshot
-4. Explain PITR and the restore window (2–30 days, default 7)
-5. Key talking point: *"Backups are always on; you set the history window. Recovery is instant via branching — note snapshot storage is now a billed component."*
+3. Recover by branching from the checkpoint
+4. Distinguish the three documented methods: checkpoint branches (scriptable, what the lab does), snapshots (managed, manual or scheduled, UI-only), and PITR
+5. Explain PITR and the restore window (2–30 days, default 7)
+6. Key talking point: *"Backups are always on; you set the history window. Every restore gives you a new branch to verify before cutting over — and note snapshot storage is now a billed component."*
+
+> Expect the question "is this a snapshot or a branch?" — the answer is that the lab uses branches, because Lakebase Snapshots have no SDK or CLI surface yet.
 
 #### Observability — Monitoring
 

@@ -309,8 +309,10 @@ print(f"  Publish mode:  TRIGGERED (default)")
 # MAGIC
 # MAGIC Publishing creates a synced table backed by its own pipeline, and reading that
 # MAGIC table reads the pipeline too. The Lab Console runs as a service principal, so
-# MAGIC without `CAN_VIEW` on the pipeline its Feature Store page stays empty even
-# MAGIC though the publish succeeded.
+# MAGIC without a grant on the pipeline its Feature Store page stays empty even
+# MAGIC though the publish succeeded. The cell grants `CAN_RUN`: `CAN_VIEW` is enough
+# MAGIC to display the table, but the published table also shows up on the Synced
+# MAGIC Tables page, and its "Trigger Sync" button starts a pipeline update.
 
 # COMMAND ----------
 
@@ -331,11 +333,11 @@ try:
             access_control_list=[
                 PipelineAccessControlRequest(
                     service_principal_name=app_sp,
-                    permission_level=PipelinePermissionLevel.CAN_VIEW,
+                    permission_level=PipelinePermissionLevel.CAN_RUN,
                 )
             ],
         )
-        print(f"✓ Granted CAN_VIEW on publish pipeline {publish_pipeline} to {app_sp}")
+        print(f"✓ Granted CAN_RUN on publish pipeline {publish_pipeline} to {app_sp}")
         print("  The online table will now appear on the app's Feature Store page.")
     else:
         print("Published table reports no pipeline yet — re-run this cell shortly.")
@@ -547,7 +549,7 @@ print("  The TRIGGERED mode incrementally syncs only the new/changed rows.")
 # MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
 # MAGIC | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
-# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Point-in-time recovery, branch snapshots, instant restore |
+# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
 # MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
 # MAGIC | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
 # MAGIC
