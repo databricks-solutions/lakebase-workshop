@@ -622,7 +622,7 @@ echo -e "    ${CYAN} 3. labs/lakehouse-sync/${RESET}          Lakebase → Delta
 echo -e "    ${CYAN} 4. labs/development-experience/${RESET}  Branching, autoscaling, scale-to-zero"
 echo -e "    ${CYAN} 5. labs/observability/${RESET}           pg_stat views, index analysis, monitoring"
 echo -e "    ${CYAN} 6. labs/authentication/${RESET}          OAuth tokens, roles, permissions"
-echo -e "    ${CYAN} 7. labs/backup-recovery/${RESET}         PITR, snapshots, instant restore"
+echo -e "    ${CYAN} 7. labs/backup-recovery/${RESET}         Checkpoint branches, snapshots, PITR"
 echo -e "    ${CYAN} 8. labs/agentic-memory/${RESET}          Persistent AI agent memory"
 echo -e "    ${CYAN} 9. labs/online-feature-store/${RESET}    Real-time ML feature serving"
 echo -e "    ${CYAN}10. labs/app-deployment/${RESET}          Full-stack Lab Console app (capstone)"

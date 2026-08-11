@@ -354,12 +354,14 @@ else:
 # MAGIC If you plan to view this synced table in the **Lab Console app**, the app's
 # MAGIC Service Principal (SP) needs access at **two layers**:
 # MAGIC
-# MAGIC 1. **Unity Catalog (control plane)** — so the app can *discover, list, and trigger*
-# MAGIC    the synced table. The app lists synced tables via `w.tables.list(main, <schema>)`
-# MAGIC    and resolves the sync pipeline through Unity Catalog, all **as the SP**. Setup
-# MAGIC    Step 6 only grants Postgres access, so without a UC grant the SP can't see your
-# MAGIC    schema and the table **won't appear in the app** (and the app's "Sync now" button
-# MAGIC    can't find the pipeline).
+# MAGIC 1. **Unity Catalog + the sync pipeline (control plane)** — so the app can *discover,
+# MAGIC    list, and trigger* the synced table. The app lists synced tables via
+# MAGIC    `w.tables.list(main, <schema>)` and resolves the sync pipeline through Unity
+# MAGIC    Catalog, all **as the SP**. Setup Step 6 only grants Postgres access, so without
+# MAGIC    a UC grant the SP can't see your schema and the table **won't appear in the app**.
+# MAGIC    Triggering is a separate permission: "Trigger Sync" starts a pipeline update,
+# MAGIC    which needs **CAN RUN** on the pipeline. `CAN VIEW` is enough to read sync status
+# MAGIC    but not to start one, and the button fails with a permission error.
 # MAGIC 2. **Postgres (data plane)** — so the app (or psql) can *read the synced rows*.
 # MAGIC    Synced tables are special: they're owned by the internal `databricks_writer_`
 # MAGIC    role, **not** by you, so a plain `GRANT ALL ON ALL TABLES` silently misses them.
@@ -367,8 +369,9 @@ else:
 # MAGIC ### 5a. Unity Catalog grant (run as you — you own the schema)
 # MAGIC
 # MAGIC The cell below looks up the Lab Console app's SP and grants it `USE CATALOG` on
-# MAGIC `main` plus `USE SCHEMA` + `SELECT` on your lab schema, so the app can see and
-# MAGIC trigger the synced table.
+# MAGIC `main` plus `USE SCHEMA` + `SELECT` on your lab schema so the app can see the
+# MAGIC synced table, then `CAN RUN` on the managed sync pipeline so the app's
+# MAGIC "Trigger Sync" button can start an update.
 
 # COMMAND ----------
 
@@ -399,6 +402,8 @@ try:
 
     # Reading a synced table also reads its managed sync pipeline, so UC grants alone
     # leave the app's Synced Tables page empty with a pipeline permission error.
+    # CAN_RUN (not CAN_VIEW) is required: the app's "Trigger Sync" button starts a
+    # pipeline update, and CAN_VIEW only covers reading pipeline details.
     if pipeline_id:
         from databricks.sdk.service.pipelines import (
             PipelineAccessControlRequest, PipelinePermissionLevel,
@@ -409,11 +414,11 @@ try:
             access_control_list=[
                 PipelineAccessControlRequest(
                     service_principal_name=app_sp,
-                    permission_level=PipelinePermissionLevel.CAN_VIEW,
+                    permission_level=PipelinePermissionLevel.CAN_RUN,
                 )
             ],
         )
-        print(f"✓ Granted CAN_VIEW on sync pipeline {pipeline_id} to the same SP")
+        print(f"✓ Granted CAN_RUN on sync pipeline {pipeline_id} to the same SP")
     print("  The synced table will now appear on the app's Synced Tables page.")
 except Exception as e:
     if "does not exist" in str(e).lower() or "not found" in str(e).lower():
@@ -475,7 +480,7 @@ except Exception as e:
 # MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
 # MAGIC | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
-# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Point-in-time recovery, branch snapshots, instant restore |
+# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
 # MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
 # MAGIC | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase Autoscaling |
 # MAGIC | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |

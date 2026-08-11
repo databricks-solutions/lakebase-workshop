@@ -2,7 +2,7 @@
 """Tear down everything the labs create so the next run starts from a clean slate.
 
 Repeatability is the point. Several labs are only idempotent in the weak sense that
-they do not crash on a second run: the backup lab's snapshot branch never expires,
+they do not crash on a second run: the backup lab's checkpoint branch never expires,
 the branches lab's dev branch keeps production's isolation proof from being
 meaningful, and the data/agent labs append rows that row-count assertions depend on.
 This script removes exactly those artifacts.
@@ -30,6 +30,9 @@ BRANCH_ALLOWLIST = {
     "lab-dev-01",
     "lab-migration-test",
     "lab-recovered",
+    "lab-checkpoint-pre-migration",
+    # Former name of the checkpoint branch; kept so a project that ran an older
+    # version of the backup lab still gets cleaned up.
     "lab-snapshot-pre-migration",
     "pitr-recovery",
 }
@@ -61,7 +64,7 @@ def planned_actions(ctx: h.Ctx) -> list[tuple[str, str]]:
     """Ordered (kind, target) pairs derived from the manifest.
 
     Manifest order matters for branches: a branch with children cannot be deleted,
-    and lab-recovered is a child of lab-snapshot-pre-migration.
+    and lab-recovered is a child of lab-checkpoint-pre-migration.
     """
     ph = ctx.placeholders()
     seen: set[tuple[str, str]] = set()

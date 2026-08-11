@@ -11,7 +11,7 @@ export default function BackupRecoveryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [creating, setCreating] = useState(false)
-  const [snapshotName, setSnapshotName] = useState('')
+  const [checkpointName, setCheckpointName] = useState('')
   const [sourceBranch, setSourceBranch] = useState('production')
   const [createResult, setCreateResult] = useState(null)
 
@@ -28,19 +28,19 @@ export default function BackupRecoveryPage() {
 
   useEffect(() => { loadBranches() }, [])
 
-  const createSnapshot = async (e) => {
+  const createCheckpoint = async (e) => {
     e.preventDefault()
-    if (!snapshotName.trim()) return
+    if (!checkpointName.trim()) return
     setCreating(true)
     setCreateResult(null)
     try {
-      const name = snapshotName.startsWith('lab-') ? snapshotName : `lab-${snapshotName}`
+      const name = checkpointName.startsWith('lab-') ? checkpointName : `lab-${checkpointName}`
       await api.createBranch({
         branch_id: name,
         source_branch: sourceBranch,
       })
-      setCreateResult({ success: true, message: `Snapshot branch "${name}" created from ${sourceBranch}` })
-      setSnapshotName('')
+      setCreateResult({ success: true, message: `Checkpoint branch "${name}" created from ${sourceBranch}` })
+      setCheckpointName('')
       loadBranches()
     } catch (e) {
       setCreateResult({ success: false, message: e.message })
@@ -49,7 +49,7 @@ export default function BackupRecoveryPage() {
   }
 
   // Temporary branches auto-delete; the API reports this via expire_time (a TTL
-  // was set at create). Persistent snapshots have no expire_time.
+  // was set at create). Non-expiring checkpoints have no expire_time.
   const isTemporary = (b) => b.expire_time && b.expire_time !== 'None'
 
   return (
@@ -60,7 +60,9 @@ export default function BackupRecoveryPage() {
             <h2>Backup & Recovery</h2>
             <p>
               Lakebase provides built-in data protection through continuous WAL archival,
-              point-in-time recovery, and instant branch snapshots.
+              point-in-time restore, managed snapshots, and instant copy-on-write branches.
+              This page creates <strong>checkpoint branches</strong> — snapshots and PITR
+              are driven from Backup &amp; Restore in the Lakebase App.
             </p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={loadBranches} disabled={loading}>
@@ -99,14 +101,19 @@ export default function BackupRecoveryPage() {
               <td>Foundation for PITR</td>
             </tr>
             <tr>
-              <td><span className="badge badge-success">Point-in-Time Recovery</span></td>
-              <td>Restore to any second within the configured window (up to 30 days)</td>
+              <td><span className="badge badge-success">Point-in-Time Restore</span></td>
+              <td>New root branch from any second within the configured window (up to 30 days)</td>
               <td>Accidental data corruption or deletion</td>
             </tr>
             <tr>
-              <td><span className="badge badge-warning">Branch Snapshots</span></td>
-              <td>Copy-on-write branch as a named checkpoint (instant, no TTL)</td>
-              <td>Pre-migration safety net</td>
+              <td><span className="badge badge-purple">Snapshots</span></td>
+              <td>Managed capture of a root branch, manual or scheduled (Lakebase App &rarr; Backup &amp; Restore)</td>
+              <td>Routine backups; restore points before UI changes</td>
+            </tr>
+            <tr>
+              <td><span className="badge badge-warning">Checkpoint Branches</span></td>
+              <td>Copy-on-write branch as a named restore point (instant, no TTL)</td>
+              <td>Scripted pre-migration safety net</td>
             </tr>
             <tr>
               <td><span className="badge badge-cyan">Branch TTL</span></td>
@@ -118,27 +125,29 @@ export default function BackupRecoveryPage() {
       </div>
 
       <div className="grid-2col">
-        {/* Create Snapshot */}
+        {/* Create Checkpoint */}
         <div className="card">
           <div className="card-header">
-            <h3><Plus size={16} /> Create Snapshot Branch</h3>
+            <h3><Plus size={16} /> Create Checkpoint Branch</h3>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12, lineHeight: 1.6 }}>
-            Create a named checkpoint before risky changes. Snapshots are instant and
-            cost no additional storage until data diverges.
+            Create a named restore point before risky changes. Checkpoint branches are instant,
+            non-expiring, and cost no additional storage until data diverges. This is the
+            scriptable equivalent of a snapshot — the managed Snapshots feature lives in the
+            Lakebase App under Backup &amp; Restore.
           </p>
           {createResult && (
             <div className={`info-box ${createResult.success ? 'info' : 'danger'}`} style={{ marginBottom: 12 }}>
               <span>{createResult.message}</span>
             </div>
           )}
-          <form onSubmit={createSnapshot}>
+          <form onSubmit={createCheckpoint}>
             <div className="form-group">
-              <label>Snapshot Name</label>
+              <label>Checkpoint Name</label>
               <input
-                value={snapshotName}
-                onChange={(e) => setSnapshotName(e.target.value)}
-                placeholder="snapshot-pre-migration"
+                value={checkpointName}
+                onChange={(e) => setCheckpointName(e.target.value)}
+                placeholder="checkpoint-pre-migration"
               />
               <div className="setup-hint">
                 Prefixed with "lab-" automatically if not present
@@ -161,8 +170,8 @@ export default function BackupRecoveryPage() {
                 )}
               </select>
             </div>
-            <button className="btn btn-primary btn-sm" type="submit" disabled={creating || !snapshotName.trim()} style={{ width: '100%' }}>
-              <Shield size={14} /> {creating ? 'Creating...' : 'Create Snapshot'}
+            <button className="btn btn-primary btn-sm" type="submit" disabled={creating || !checkpointName.trim()} style={{ width: '100%' }}>
+              <Shield size={14} /> {creating ? 'Creating...' : 'Create Checkpoint'}
             </button>
           </form>
         </div>
@@ -214,8 +223,8 @@ export default function BackupRecoveryPage() {
         <div className="flow-diagram flow-5">
           <div className="flow-box">
             <div style={{ marginBottom: 8 }}><Shield size={28} style={{ color: 'var(--blue)' }} /></div>
-            <div className="flow-box-title">Create Snapshot</div>
-            <div className="flow-box-subtitle">Named checkpoint</div>
+            <div className="flow-box-title">Create Checkpoint</div>
+            <div className="flow-box-subtitle">Named restore point</div>
           </div>
           <div className="flow-arrow"><ChevronRight size={32} /></div>
           <div className="flow-box">
@@ -227,13 +236,13 @@ export default function BackupRecoveryPage() {
           <div className="flow-box">
             <div style={{ marginBottom: 8 }}><Database size={28} style={{ color: 'var(--success)' }} /></div>
             <div className="flow-box-title">Recover</div>
-            <div className="flow-box-subtitle">Branch from snapshot</div>
+            <div className="flow-box-subtitle">Branch from checkpoint</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
           <div className="info-box info">
             <span style={{ fontWeight: 600 }}>Step 1:</span>
-            <span>Create a snapshot branch from production (no TTL) as a named safety checkpoint.</span>
+            <span>Create a checkpoint branch from production (no TTL) as a named safety net.</span>
           </div>
           <div className="info-box warning">
             <span style={{ fontWeight: 600 }}>Step 2:</span>
@@ -241,7 +250,7 @@ export default function BackupRecoveryPage() {
           </div>
           <div className="info-box info">
             <span style={{ fontWeight: 600 }}>Step 3:</span>
-            <span>If something goes wrong, create a new branch from the snapshot. Data is fully intact.</span>
+            <span>If something goes wrong, create a new branch from the checkpoint. Data is fully intact.</span>
           </div>
         </div>
       </div>
@@ -298,8 +307,12 @@ w.postgres.create_branch(
           </thead>
           <tbody>
             <tr>
-              <td>Before a schema migration</td>
-              <td>Create a snapshot branch (instant; shares storage until data diverges)</td>
+              <td>Before a scripted schema migration</td>
+              <td>Create a checkpoint branch (instant; shares storage until data diverges)</td>
+            </tr>
+            <tr>
+              <td>Routine backups</td>
+              <td>Set a snapshot schedule on the root branch in the Lakebase App</td>
             </tr>
             <tr>
               <td>Accidental DELETE/UPDATE</td>

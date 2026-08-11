@@ -177,6 +177,33 @@ def _extract_synced_info(synced, full_name: str) -> dict:
     }
 
 
+def _trigger_error(e: Exception) -> HTTPException:
+    """Map a start_update failure to something a participant can act on.
+
+    The two failures that actually happen in the workshop are a missing CAN RUN
+    grant on the managed sync pipeline (CAN VIEW is enough to *see* the synced
+    table, but not to start an update) and a sync that is already running.
+    Everything else stays sanitized.
+    """
+    lowered = str(e).lower()
+    logger.warning("start_update failed: %s", e)
+    if "permission" in lowered or "not authorized" in lowered or "does not have" in lowered:
+        return HTTPException(
+            403,
+            "The Lab Console's service principal needs CAN RUN on this table's sync "
+            "pipeline to start an update — CAN VIEW only lets it read the status. "
+            "Re-run Step 5a of the Reverse ETL notebook to grant it.",
+        )
+    if any(k in lowered for k in ("already", "in progress", "conflict", "active update")):
+        return HTTPException(
+            409,
+            "A sync update is already running for this table. A synced table runs one "
+            "update at a time — wait for it to finish, then trigger again.",
+        )
+    log_and_sanitize(e, "Failed to trigger sync", context="/api/online-tables/trigger")
+    return HTTPException(500, "Failed to trigger sync")
+
+
 @router.post("/synced-tables/{table_id}/trigger")
 def trigger_synced_table(table_id: str, pipeline_id: str | None = None, user: UserContext = Depends(get_current_user)):
     """Trigger a sync pipeline update for a synced table in the caller's schema.
@@ -204,8 +231,7 @@ def trigger_synced_table(table_id: str, pipeline_id: str | None = None, user: Us
     except HTTPException:
         raise
     except Exception as e:
-        log_and_sanitize(e, "Failed to trigger sync", context="/api/online-tables/trigger")
-        raise HTTPException(500, "Failed to trigger sync")
+        raise _trigger_error(e)
 
 
 # ── Online Tables (UC) ─────────────────────────────────────────────────────

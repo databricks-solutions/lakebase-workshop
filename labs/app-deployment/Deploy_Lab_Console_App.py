@@ -27,7 +27,7 @@
 # MAGIC - Lakebase Search — vector, keyword (BM25), and hybrid search
 # MAGIC - Observability — pg_stat views plus platform monitoring pointers
 # MAGIC - Auth & Security — connection details, roles, and permission layers
-# MAGIC - Backup & Recovery — snapshots and point-in-time recovery
+# MAGIC - Backup & Recovery — checkpoint branches and point-in-time restore
 # MAGIC - Data API / Console API Tester — REST and raw SQL against any branch
 # MAGIC - Agent Memory — session/message and long-term memory UI
 
@@ -492,7 +492,7 @@ print(f"\nEach call generates a fresh token. Cache them to avoid unnecessary API
 # MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling, scale-to-zero |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, monitoring |
 # MAGIC | **Authentication** | `labs/authentication/` | OAuth tokens, roles, two-layer permissions |
-# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | PITR, branch snapshots, instant restore |
+# MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
 # MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with sessions |
 # MAGIC | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving |
 # MAGIC | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app (this lab) |

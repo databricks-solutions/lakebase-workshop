@@ -77,7 +77,7 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 |-----|----------------|
 | **Development Experience** | Create isolated database branches, test autoscaling, and explore high availability + read replicas |
 | **Authentication, Security & Compliance** | Explore token-based auth, role permissions, encryption/CMK, Private Link, and compliance profiles |
-| **Backup & Recovery** | Try point-in-time recovery and instant snapshots |
+| **Backup & Recovery** | Try checkpoint branches, snapshots, and point-in-time restore |
 | **Observability** | Monitor database performance, indexes, and query activity |
 
 All labs are in the `labs/` folder, organized by topic.
