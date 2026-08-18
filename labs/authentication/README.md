@@ -15,8 +15,9 @@ Understand Lakebase's security model end to end: workspace-level IAM, database-l
 ## Key Concepts
 
 - **Two-layer permissions** — Workspace IAM (who can access the project) + PostgreSQL roles (what they can do inside the database)
-- **OAuth tokens** — 1-hour TTL, no static passwords, automatic rotation via the SDK
-- **Connection limits** — 24-hour idle timeout, 3-day max connection life; PgBouncer pooling requires password auth (not OAuth)
+- **OAuth tokens** — 1-hour TTL at login; best for notebooks/apps that can rotate credentials
+- **Postgres passwords** — preferred for psql/pgAdmin/DBeaver (no hourly refresh); disabled by default on new projects until enabled in Settings
+- **Connection limits** — 24-hour idle timeout, 3-day max connection life; PgBouncer requires password auth (`-pooler` host, port 5432)
 - **Encryption** — TLS 1.2+ in transit, AES-256 at rest, per-project DEK/KEK envelope; **Customer-Managed Keys (CMK)** GA for Enterprise (new projects)
 - **Network isolation** — inbound **Private Link** (GA) for private connectivity
 - **Compliance** — HIPAA, C5, TISAX, SOC 2 Type 2 (tier/region dependent)

@@ -19,7 +19,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 
@@ -81,6 +81,11 @@ except Exception as e:
     else:
         raise
 
+show_view_link(
+    f"View the '{DEV_BRANCH}' branch you just created in Lakebase",
+    lakebase_project_url(branch=DEV_BRANCH),
+)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -126,6 +131,11 @@ with conn.cursor() as cur:
     """)
 conn.commit()
 print("✓ Reviews table created and seeded on dev branch")
+
+show_view_link(
+    f"View the reviews table on the '{DEV_BRANCH}' branch in Lakebase",
+    lakebase_tables_url(DEV_BRANCH),
+)
 
 # COMMAND ----------
 

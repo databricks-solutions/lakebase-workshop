@@ -93,6 +93,8 @@ class Ctx:
             "schema": self.pg_schema,
             "catalog": self.uc_catalog,
             "uc_schema": self.uc_schema,
+            # Federated Lakebase→UC catalog from labs/unity-catalog-access
+            "fed_catalog": f"lb_fed_{sanitize(self.user_email).replace('-', '_')}",
             "project": self.project_id,
             "user": self.user_email,
         }
@@ -699,5 +701,5 @@ def require_sdk() -> None:
         import psycopg  # noqa: F401
     except ImportError as e:
         say(f"{C.R}Missing dependency:{C.X} {e}")
-        say('Install with: pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0"')
+        say('Install with: pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6"')
         sys.exit(2)

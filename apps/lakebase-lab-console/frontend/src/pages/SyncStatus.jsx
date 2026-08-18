@@ -59,7 +59,9 @@ export default function SyncStatus({ config }) {
               Move data between Unity Catalog and Lakebase. <strong>Synced tables</strong> (Reverse ETL)
               continuously push Delta tables into Lakebase for fast OLTP reads — a one-way sync. A
               separate Public Preview feature streams Lakebase changes back to the Lakehouse as Delta,
-              shown further down.
+              shown further down. For <strong>live federated reads</strong> (no copy), register the
+              Postgres database as a Unity Catalog catalog — see{' '}
+              <code style={{ color: 'var(--accent)' }}>labs/unity-catalog-access/</code>.
             </p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={loadSyncedTables} disabled={loading}>

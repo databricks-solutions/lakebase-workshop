@@ -50,6 +50,7 @@ See the doc's "Build downstream pipelines" section and the CDC ETL tutorial link
 - [Lakebase Change Data Feed (Public Preview)](https://docs.databricks.com/aws/en/oltp/projects/lakehouse-sync) — official docs, setup, and downstream patterns
 - [Bi-directional data movement](https://docs.databricks.com/aws/en/oltp/projects/about) — how CDF pairs with Synced Tables
 - [Reverse ETL (Synced Tables)](../reverse-etl/) — the inverse pattern, for context
+- [Unity Catalog Access](../unity-catalog-access/) — federated live reads (no copy); complementary to CDF
 - [Use Delta Lake change data feed](https://docs.databricks.com/aws/en/delta/delta-change-data-feed)
 
 ## Notes

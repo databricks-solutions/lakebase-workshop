@@ -58,8 +58,13 @@ def wait_for_endpoint(branch="production", max_attempts=60, delay=5):
 
 def get_connection(branch="production", connect_retries=3):
     """Connect to a Lakebase branch. Returns a psycopg connection with dict_row.
-    Sets search_path to PG_SCHEMA so table references don't need schema qualifiers.
 
+    Uses Databricks SDK OAuth (`generate_database_credential`) + sslmode=require —
+    the recommended path for notebooks and apps that can mint short-lived tokens.
+    For interactive clients (psql/pgAdmin/DBeaver), prefer a native Postgres password
+    role from the Lakebase App Connect dialog instead.
+
+    Sets search_path to PG_SCHEMA so table references don't need schema qualifiers.
     Retries the connect a few times: a scale-to-zero branch may take a moment to
     wake on the first connection (non-production branches suspend when idle)."""
     endpoints = list(w.postgres.list_endpoints(
@@ -233,6 +238,146 @@ def show_app_link(page_id, label=None):
       </a>
     </div>
     """)
+
+# ---------------------------------------------------------------------------
+# Databricks UI deep links
+#
+# Labs create durable artifacts (UC tables, Lakebase projects/branches/tables,
+# sync pipelines). These helpers build per-user, per-workspace URLs so a
+# participant can click straight through to what they just created. Everything
+# resolves dynamically from the current identity/workspace — nothing hardcoded.
+# ---------------------------------------------------------------------------
+
+# The Lakebase UI addresses projects/branches by their system-generated UID
+# (e.g. projects/5fd496e7-… / branches/br-round-tree-…), not the human-readable
+# resource id the SDK uses in resource paths. Resolve + cache the UIDs once.
+_project_uid_cache = {}
+_branch_uid_cache = {}
+
+
+def _workspace_org_id():
+    """Resolve the numeric workspace/org id used by the `?o=` deep-link param.
+
+    Works on all clouds: AWS/GCP hosts (e.g. e2-demo-field-eng.cloud.databricks.com)
+    don't embed the id, so we ask the SDK (`get_workspace_id`). Azure hosts embed it
+    as `adb-<digits>`, used as a fallback if the API call is unavailable.
+    """
+    try:
+        wid = w.get_workspace_id()
+        if wid:
+            return str(wid)
+    except Exception:
+        pass
+    if WORKSPACE_HOST:
+        m = re.search(r"adb-(\d+)\.", WORKSPACE_HOST)
+        if m:
+            return m.group(1)
+    return None
+
+
+_ORG_ID = _workspace_org_id()
+
+
+def _with_org(url):
+    """Append the Azure `?o=<org>` param when we can derive it."""
+    if _ORG_ID:
+        sep = "&" if "?" in url else "?"
+        return f"{url}{sep}o={_ORG_ID}"
+    return url
+
+
+def uc_table_url(catalog, schema, table):
+    """Catalog Explorer deep link for a Unity Catalog table."""
+    if not WORKSPACE_HOST:
+        return ""
+    return _with_org(f"{WORKSPACE_HOST}/explore/data/{catalog}/{schema}/{table}")
+
+
+def _project_uid(project_id=None):
+    """Resolve (and cache) the system UID for a Lakebase project."""
+    project_id = project_id or PROJECT_ID
+    if project_id in _project_uid_cache:
+        return _project_uid_cache[project_id]
+    uid = None
+    try:
+        proj = w.postgres.get_project(name=f"projects/{project_id}")
+        uid = getattr(proj, "uid", None)
+    except Exception:
+        uid = None
+    _project_uid_cache[project_id] = uid
+    return uid
+
+
+def _branch_uid(branch="production", project_id=None):
+    """Resolve (and cache) the system UID for a Lakebase branch."""
+    project_id = project_id or PROJECT_ID
+    key = f"{project_id}/{branch}"
+    if key in _branch_uid_cache:
+        return _branch_uid_cache[key]
+    uid = None
+    try:
+        b = w.postgres.get_branch(name=f"projects/{project_id}/branches/{branch}")
+        uid = getattr(b, "uid", None)
+    except Exception:
+        uid = None
+    _branch_uid_cache[key] = uid
+    return uid
+
+
+def lakebase_project_url(branch=None, project_id=None):
+    """Lakebase project UI link, optionally focused on a branch.
+
+    Falls back to the human-readable project id if the UID lookup fails."""
+    if not WORKSPACE_HOST:
+        return ""
+    project_id = project_id or PROJECT_ID
+    puid = _project_uid(project_id) or project_id
+    url = f"{WORKSPACE_HOST}/lakebase/projects/{puid}"
+    if branch:
+        url = f"{url}?branchId={branch}"
+    return url
+
+
+def lakebase_tables_url(branch="production", project_id=None):
+    """Lakebase Tables UI link for a branch.
+
+    Prefers the UID path (/projects/{uid}/branches/{uid}/tables). If a UID can't
+    be resolved, falls back to the project URL focused on the branch."""
+    if not WORKSPACE_HOST:
+        return ""
+    project_id = project_id or PROJECT_ID
+    puid = _project_uid(project_id)
+    buid = _branch_uid(branch, project_id)
+    if puid and buid:
+        return f"{WORKSPACE_HOST}/lakebase/projects/{puid}/branches/{buid}/tables"
+    return lakebase_project_url(branch=branch, project_id=project_id)
+
+
+def pipeline_url(pipeline_id):
+    """Lakeflow/DLT pipeline UI link for a sync or publish pipeline."""
+    if not WORKSPACE_HOST or not pipeline_id:
+        return ""
+    return f"{WORKSPACE_HOST}/pipelines/{pipeline_id}"
+
+
+def show_view_link(label, url):
+    """Render a clickable 'View … →' banner linking to a Databricks UI page.
+
+    Falls back to a plain-text print when displayHTML isn't available (e.g.
+    running outside a notebook)."""
+    if not url:
+        return
+    try:
+        displayHTML(f"""
+    <div style="padding:10px 16px;margin:8px 0;border-radius:8px;background:#e6f4ea;border:1px solid #a8dab5;display:flex;align-items:center;gap:12px;font-family:Inter,sans-serif">
+      <div style="flex:1;color:#137333;font-weight:600">{label}</div>
+      <a href="{url}" target="_blank" style="background:#137333;color:#fff;padding:6px 16px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">
+        View →
+      </a>
+    </div>
+    """)
+    except Exception:
+        print(f"{label}: {url}")
 
 print(f"Project: {PROJECT_ID}")
 print(f"Schema:  {PG_SCHEMA}")

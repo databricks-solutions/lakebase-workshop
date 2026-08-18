@@ -74,7 +74,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 
@@ -401,6 +401,33 @@ print("  Open the Lab Console app (Compute → Apps → lakebase-lab-console)")
 print("  to explore your data. The app routes each user to their own")
 print("  Lakebase project automatically.")
 
+# Clickable deep link straight to your Lakebase project in the Databricks UI.
+_host = (w.config.host or "").rstrip("/")
+if _host:
+    # Workspace/org id for the ?o= param — cloud-agnostic via the SDK, with the
+    # Azure adb-<digits> host as a fallback.
+    try:
+        _org_id = str(w.get_workspace_id())
+    except Exception:
+        _m = re.search(r"adb-(\d+)\.", _host)
+        _org_id = _m.group(1) if _m else None
+    try:
+        _puid = getattr(w.postgres.get_project(name=f"projects/{PROJECT_ID}"), "uid", None)
+    except Exception:
+        _puid = None
+    _proj_url = f"{_host}/lakebase/projects/{_puid or PROJECT_ID}"
+    if _org_id:
+        _proj_url = f"{_proj_url}?o={_org_id}"
+    try:
+        displayHTML(f"""
+    <div style="padding:10px 16px;margin:8px 0;border-radius:8px;background:#e6f4ea;border:1px solid #a8dab5;display:flex;align-items:center;gap:12px;font-family:Inter,sans-serif">
+      <div style="flex:1;color:#137333;font-weight:600">View your Lakebase project you just created</div>
+      <a href="{_proj_url}" target="_blank" style="background:#137333;color:#fff;padding:6px 16px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">View →</a>
+    </div>
+    """)
+    except Exception:
+        print(f"  View your Lakebase project: {_proj_url}")
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -413,16 +440,19 @@ print("  Lakebase project automatically.")
 # MAGIC |---|------|--------|-------------------|
 # MAGIC | 1 | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | 2 | **Reverse ETL** | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase for low-latency serving |
-# MAGIC | 3 | **Lakehouse Sync** *(Public Preview)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
-# MAGIC | 4 | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
-# MAGIC | 5 | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
-# MAGIC | 6 | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
-# MAGIC | 7 | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
-# MAGIC | 8 | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
-# MAGIC | 9 | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase |
-# MAGIC | 10 | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
-# MAGIC | 11 | **Data API** | `labs/data-api/` | PostgREST REST access, OAuth bearer tokens, and row-level security |
-# MAGIC | 12 | **Lakebase Search** *(Beta)* | `labs/lakebase-search/` | Vector + keyword search with hybrid RRF ranking |
+# MAGIC | 3 | **Unity Catalog Access** | `labs/unity-catalog-access/` | Register Postgres as a federated read-only UC catalog for Lakehouse SQL |
+# MAGIC | 4 | **Lakehouse Sync** *(Public Preview)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
+# MAGIC | 5 | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |
+# MAGIC | 6 | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
+# MAGIC | 7 | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
+# MAGIC | 8 | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
+# MAGIC | 9 | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
+# MAGIC | 10 | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase |
+# MAGIC | 11 | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
+# MAGIC | 12 | **Data API** | `labs/data-api/` | PostgREST REST access, OAuth bearer tokens, and row-level security |
+# MAGIC | 13 | **Lakebase Search** *(Beta)* | `labs/lakebase-search/` | Vector + keyword search with hybrid RRF ranking |
+# MAGIC
+# MAGIC > Prefer the track tables in `labs/README.md` — they list the exact notebook file to open for each lab.
 
 # COMMAND ----------
 

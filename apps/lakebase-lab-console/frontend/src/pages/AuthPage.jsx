@@ -327,28 +327,32 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA <schema>
 
         <CollapsibleSection title="External Tools" icon={null} defaultOpen={false}>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12 }}>
-            Connect with psql, DBeaver, DataGrip, or any PostgreSQL client:
+            For psql, DBeaver, DataGrip, or pgAdmin, prefer a <strong>native Postgres password</strong> role
+            from the Lakebase App <strong>Connect</strong> dialog (OAuth expires hourly). Enable password
+            connections under project Settings if needed, then copy the connection string:
           </p>
-          <div className="code-block">{`# Generate a token via CLI
+          <div className="code-block">{`# Recommended: paste the password-role string from Connect
+psql 'postgresql://role_name:password@ep-….databricks.com/databricks_postgres?sslmode=require'
+
+# Alternative (short sessions): OAuth token via CLI
 TOKEN=$(databricks postgres \\
   generate-database-credential \\
   "projects/<project-id>/branches/production/endpoints/primary" \\
   --profile <profile> -o json \\
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
-# Connect with psql
 PGPASSWORD="$TOKEN" psql \\
   -h <endpoint-host> \\
   -U <your-email> \\
   -d databricks_postgres \\
   --set=sslmode=require`}</div>
           <div className="info-box warning" style={{ marginTop: 12 }}>
-            <span style={{ fontWeight: 600 }}>Token TTL:</span>
-            <span>OAuth tokens expire after ~1 hour. Use a password command or connection pool with auto-refresh for long-running sessions.</span>
+            <span style={{ fontWeight: 600 }}>Auth choice:</span>
+            <span>Password roles suit interactive clients. OAuth (~1 hour at login) suits notebooks and apps that rotate tokens — use a password command or connection pool with auto-refresh for long-running OAuth sessions.</span>
           </div>
           <div className="info-box info" style={{ marginTop: 10 }}>
             <span style={{ fontWeight: 600 }}>Connection limits:</span>
-            <span>A connection may stay open up to ~3 days total and is closed after ~24 hours idle, regardless of token TTL. OAuth is per-connection; for a shared pooler (PgBouncer) you must use a stored password role, since a rotating token can't authenticate pooled connections.</span>
+            <span>Connections may stay open up to ~3 days and close after ~24 hours idle. Built-in PgBouncer needs a password role and a <code>-pooler</code> hostname (port stays 5432) — OAuth cannot use the shared pooler.</span>
           </div>
         </CollapsibleSection>
       </div>

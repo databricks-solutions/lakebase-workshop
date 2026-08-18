@@ -1,6 +1,14 @@
 -- Lakebase Workshop: Advanced PostgreSQL Features
--- Run these against your Lakebase endpoint to explore advanced capabilities.
--- Set search_path to your schema (replace with your actual schema name from notebook 00):
+--
+-- Recommended (simplest): Lakebase App → SQL Editor → select your branch/database,
+-- then set search_path and run statements below.
+--   Docs: https://docs.databricks.com/aws/en/oltp/projects/sql-editor
+--
+-- Desktop clients (psql / pgAdmin / DBeaver): use a native Postgres password role
+-- from the Connect dialog — OAuth tokens expire hourly and are a poor fit for GUIs.
+--   Docs: https://docs.databricks.com/aws/en/oltp/projects/postgres-clients
+--
+-- Set search_path to your schema (from notebook 00 / PG_SCHEMA):
 -- SET search_path TO lakebase_lab_<your_username>, public;
 
 -- ============================================================

@@ -28,7 +28,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-feature-engineering>=0.13.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-feature-engineering>=0.13.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 
@@ -212,6 +212,11 @@ else:
 
 display(spark.sql(f"SELECT * FROM {FEATURE_TABLE} ORDER BY customer_id"))
 
+show_view_link(
+    "View the feature table you just created in Unity Catalog",
+    uc_table_url(UC_CATALOG, UC_SCHEMA, "customer_features"),
+)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -302,6 +307,15 @@ print(f"  Online table:  {ONLINE_TABLE}")
 print(f"  Online store:  {ONLINE_STORE_NAME}")
 print(f"  Publish mode:  TRIGGERED (default)")
 
+show_view_link(
+    "View the online feature table you just published in Unity Catalog",
+    uc_table_url(UC_CATALOG, UC_SCHEMA, "customer_features_online"),
+)
+show_view_link(
+    "View the published table in Lakebase (Postgres tables)",
+    lakebase_tables_url("production"),
+)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -339,6 +353,7 @@ try:
         )
         print(f"✓ Granted CAN_RUN on publish pipeline {publish_pipeline} to {app_sp}")
         print("  The online table will now appear on the app's Feature Store page.")
+        show_view_link("View the publish pipeline", pipeline_url(publish_pipeline))
     else:
         print("Published table reports no pipeline yet — re-run this cell shortly.")
 except Exception as e:
