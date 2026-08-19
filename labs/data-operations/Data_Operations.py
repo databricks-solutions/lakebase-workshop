@@ -17,20 +17,23 @@
 # MAGIC
 # MAGIC ### Running SQL against Lakebase
 # MAGIC
-# MAGIC The SQL in this lab can be executed from:
+# MAGIC Pick the simplest path for what you're doing:
 # MAGIC
-# MAGIC - **This notebook** — uses `psycopg` to connect via the Databricks SDK (run the cells below)
-# MAGIC - **Lakebase SQL Editor** — open the SQL editor in the Databricks UI for your Lakebase instance and run queries directly
-# MAGIC - **psql / any PostgreSQL client** — connect with your endpoint host and credentials
+# MAGIC | Goal | Use |
+# MAGIC |------|-----|
+# MAGIC | **This lab (CRUD, transactions, audit)** | Cells below — `get_connection()` = SDK OAuth + `psycopg` + `sslmode=require` |
+# MAGIC | **Ad-hoc / `Advanced_Postgres.sql`** | [Lakebase SQL Editor](https://docs.databricks.com/aws/en/oltp/projects/sql-editor) (no token refresh, no local client) |
+# MAGIC | **psql / pgAdmin / DBeaver** | [Native Postgres password](https://docs.databricks.com/aws/en/oltp/projects/postgres-clients) from the Lakebase App **Connect** dialog (OAuth expires hourly) |
 # MAGIC
-# MAGIC Lab connections set PostgreSQL `search_path` to **your user schema** (the same name as `PG_SCHEMA` from notebook `00`). SQL in this notebook uses unqualified table names; they resolve to that schema.
+# MAGIC Lab connections set PostgreSQL `search_path` to **your user schema** (`PG_SCHEMA` from notebook `00`). Unqualified table names resolve there. In the SQL Editor or an external client, run `SET search_path TO <your_schema>, public;` first.
 # MAGIC
-# MAGIC **Docs:** [SQL Editor](https://docs.databricks.com/aws/en/oltp/projects/sql-editor) |
+# MAGIC **Docs:** [Connect](https://docs.databricks.com/aws/en/oltp/projects/connect) |
+# MAGIC [SQL Editor](https://docs.databricks.com/aws/en/oltp/projects/sql-editor) |
 # MAGIC [Postgres clients](https://docs.databricks.com/aws/en/oltp/projects/postgres-clients)
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 

@@ -11,17 +11,19 @@
 # MAGIC > prefer "synced tables" to match the docs and UI.
 # MAGIC
 # MAGIC In this notebook you will:
-# MAGIC 1. Set up a Delta source table (use your own data or generate sample data)
-# MAGIC 2. Understand the three sync modes — **Snapshot**, **Triggered**, and **Continuous**
-# MAGIC 3. Set up a synced table that pushes data to Lakebase
-# MAGIC 4. Check sync status
-# MAGIC 5. Update the source and observe the sync
+# MAGIC 1. See how synced tables + the sync pipeline relate (architecture diagrams)
+# MAGIC 2. Set up a Delta source table (use your own data or generate sample data)
+# MAGIC 3. Understand the three sync modes — **Snapshot**, **Triggered**, and **Continuous**
+# MAGIC 4. Set up a synced table that pushes data to Lakebase
+# MAGIC 5. Check sync status
+# MAGIC 6. Update the source and observe the sync
 # MAGIC
 # MAGIC **Prerequisites:**
 # MAGIC - Run `00_Setup_Lakebase_Project` first
 # MAGIC - A Unity Catalog catalog & schema with write access
 # MAGIC
 # MAGIC **Docs:** [Serve lakehouse data with synced tables](https://docs.databricks.com/aws/en/oltp/projects/sync-tables)
+# MAGIC ([Azure](https://learn.microsoft.com/en-us/azure/databricks/oltp/projects/sync-tables) · [AWS](https://docs.databricks.com/aws/en/oltp/projects/sync-tables))
 # MAGIC
 # MAGIC > **Bring your own data or use ours:** This lab generates a sample products table
 # MAGIC > by default. If you already have a Delta table you'd like to sync, skip the
@@ -33,7 +35,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 
@@ -46,6 +48,49 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 show_app_link("sync", "Reverse ETL")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## How synced tables work
+# MAGIC
+# MAGIC Synced tables (**Reverse ETL**) copy lakehouse data into Lakebase so apps can run
+# MAGIC low-latency lookups with transactional consistency. The lakehouse stays the
+# MAGIC system of record for analytics; Lakebase serves the operational read path.
+# MAGIC
+# MAGIC ### Architecture (lakehouse → Lakebase → applications)
+# MAGIC
+# MAGIC Unity Catalog tables sync into Postgres. Applications use standard Postgres drivers
+# MAGIC against the synced data (alongside their own OLTP tables in the same database).
+# MAGIC
+# MAGIC ![Architecture: lakehouse data flowing through synced tables into Lakebase for applications](../../docs/images/reverse-etl-architecture.png)
+# MAGIC
+# MAGIC *Source: [Serve lakehouse data with synced tables](https://docs.databricks.com/aws/en/oltp/projects/sync-tables)*
+# MAGIC
+# MAGIC ### What you get when you create a synced table
+# MAGIC
+# MAGIC Creating a synced table is **not** “one object.” You get a managed sync pipeline
+# MAGIC that keeps **two queryable surfaces** in sync with your source:
+# MAGIC
+# MAGIC | Piece | Where it lives | Role |
+# MAGIC |-------|----------------|------|
+# MAGIC | **Source table** | Unity Catalog (Delta / Iceberg / view) | Lakehouse system of record |
+# MAGIC | **Synced table** | Unity Catalog | Control-plane object that references the Lakeflow sync pipeline (status, mode, “Sync now”) |
+# MAGIC | **Postgres table** | Lakebase | Serving copy apps query (treat as **read-only**) |
+# MAGIC
+# MAGIC ![Three-table relationship: source UC table, UC synced table, and Postgres table](../../docs/images/reverse-etl-three-table-flow.png)
+# MAGIC
+# MAGIC *Source: [How it works](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#how-it-works)*
+# MAGIC
+# MAGIC **Naming in this lab:** source `….sample_products` → UC synced table `….products_synced`
+# MAGIC → Postgres table `{schema}.products_synced` (UC schema name becomes the Postgres schema).
+# MAGIC
+# MAGIC **Pipeline:** a managed Lakeflow pipeline continuously (or on trigger / snapshot)
+# MAGIC updates both the UC synced table metadata and the Postgres table from the source.
+# MAGIC Each sync can use up to **16 connections** to your Lakebase database.
+# MAGIC
+# MAGIC > Prefer **reads only** against the Postgres synced table. Writes belong on the
+# MAGIC > lakehouse source (or on separate operational tables you own in Lakebase).
 
 # COMMAND ----------
 
@@ -123,14 +168,24 @@ else:
 
 display(spark.sql(f"SELECT * FROM {SOURCE_TABLE}"))
 
+# View the source table in Unity Catalog. Derive catalog/schema/table from the
+# three-part name so the link is correct whether it's the sample or your own data.
+_src_parts = SOURCE_TABLE.split(".")
+if len(_src_parts) == 3:
+    _src_label = ("View the sample products table you just created in Unity Catalog"
+                  if not USE_OWN_DATA else "View the source table in Unity Catalog")
+    show_view_link(_src_label, uc_table_url(*_src_parts))
+
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Sync Pipeline Modes
 # MAGIC
-# MAGIC Before creating the synced table, it's important to understand the three **sync modes**
-# MAGIC available. Choose the right one based on your freshness requirements, cost tolerance,
-# MAGIC and source table characteristics.
+# MAGIC The architecture diagrams above show *what* gets created. Sync **mode** controls
+# MAGIC *how often* the Lakeflow pipeline refreshes the Postgres copy.
+# MAGIC
+# MAGIC Before creating the synced table, pick a mode based on freshness, cost, and whether
+# MAGIC your source supports Change Data Feed (CDF).
 # MAGIC
 # MAGIC | Mode | How It Works | When to Use | CDF Required? |
 # MAGIC |------|-------------|-------------|---------------|
@@ -283,6 +338,18 @@ status = w.postgres.get_synced_table(name=f"synced_tables/{SYNCED_TABLE}")
 print(f"State:   {_sattr(status, 'status', 'detailed_state', default='unknown')}")
 print(f"Message: {_sattr(status, 'status', 'message') or 'N/A'}")
 
+# The synced table exists in two places — link to both.
+_synced_parts = SYNCED_TABLE.split(".")
+if len(_synced_parts) == 3:
+    show_view_link(
+        "View the synced table in Unity Catalog",
+        uc_table_url(*_synced_parts),
+    )
+show_view_link(
+    "View the synced table in Lakebase (Postgres tables)",
+    lakebase_tables_url("production"),
+)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -339,6 +406,7 @@ else:
             w.pipelines.start_update(pipeline_id=pipeline_id)
             print(f"✓ {SYNC_MODE.title()} sync triggered (pipeline {pipeline_id}).")
             print("  Track progress in cell 3, or in Catalog Explorer → your synced table → Overview.")
+            show_view_link("View the sync pipeline run", pipeline_url(pipeline_id))
         except Exception as e:
             msg = str(e).lower()
             if any(k in msg for k in ("already", "in progress", "active", "running")):
@@ -475,6 +543,7 @@ except Exception as e:
 # MAGIC
 # MAGIC | Path | Folder | What You'll Learn |
 # MAGIC |------|--------|-------------------|
+# MAGIC | **Unity Catalog Access** | `labs/unity-catalog-access/` | Federated **read** — register Postgres as a UC catalog (no copy) |
 # MAGIC | **Lakehouse Sync** *(Public Preview)* | `labs/lakehouse-sync/` | The inverse pattern — sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (CDC change history) |
 # MAGIC | **Data Operations** | `labs/data-operations/` | CRUD, JSONB queries, array operators, audit triggers, transactions |
 # MAGIC | **Development Experience** | `labs/development-experience/` | Git-like branching, autoscaling compute, scale-to-zero |

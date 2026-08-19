@@ -73,9 +73,9 @@ INSTALL_DEPS="${INSTALL_DEPS:-Y}"
 
 if [[ "$INSTALL_DEPS" =~ ^[Yy] ]]; then
   echo ""
-  if ! $PIP_CMD install -q "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null; then
+  if ! $PIP_CMD install -q "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" 2>/dev/null; then
     info "Retrying with --break-system-packages (PEP 668)..."
-    $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null || true
+    $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" 2>/dev/null || true
   fi
   ok "Python packages installed"
 else
@@ -188,11 +188,32 @@ fi
 
 step "Saving configuration"
 
+# If this checkout was previously pointed at a different workspace, drop local
+# DAB Terraform state. Otherwise Apps deploy fails with workspace_id mismatch
+# (stale provider_config from the prior workspace). State is gitignored and
+# per-machine; remote state in each workspace is independent.
+PREV_HOST=""
+if [[ -f "$SCRIPT_DIR/.workshop-config" ]]; then
+  # shellcheck disable=SC1091
+  PREV_HOST=$(grep '^WORKSPACE_HOST=' "$SCRIPT_DIR/.workshop-config" 2>/dev/null | cut -d= -f2- || true)
+fi
+if [[ -n "$PREV_HOST" && "$PREV_HOST" != "$WORKSPACE_HOST" ]]; then
+  warn "Workspace changed ($PREV_HOST → $WORKSPACE_HOST)"
+  info "Clearing local bundle Terraform state so deploy targets the new workspace"
+  find "$SCRIPT_DIR/.databricks/bundle" -type f \( -name 'terraform.tfstate' -o -name 'terraform.tfstate.backup' -o -name 'plan' \) -delete 2>/dev/null || true
+fi
+
 DAB_YAML="$SCRIPT_DIR/databricks.yml"
+# Always rewrite target profiles (not a one-shot <your-profile> placeholder), so
+# the same clone can be reused across customer workspaces.
 python3 -c "
-content = open('$DAB_YAML').read()
-content = content.replace('<your-profile>', '$PROFILE')
-open('$DAB_YAML', 'w').write(content)
+import re
+path = '$DAB_YAML'
+profile = '''$PROFILE'''
+content = open(path).read()
+content = content.replace('<your-profile>', profile)
+content = re.sub(r'(^[ \t]*profile:\s*)\S+', r'\g<1>' + profile, content, flags=re.M)
+open(path, 'w').write(content)
 " 2>/dev/null || true
 ok "databricks.yml configured with profile: $PROFILE"
 
@@ -268,8 +289,8 @@ ensure_lakebase_project() {
 
   if ! python3 -c "import databricks.sdk, psycopg" &>/dev/null; then
     info "Installing databricks-sdk + psycopg (needed to auto-create the project)..."
-    if ! $PIP_CMD install -q "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null; then
-      $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null || true
+    if ! $PIP_CMD install -q "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" 2>/dev/null; then
+      $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" 2>/dev/null || true
     fi
     if ! python3 -c "import databricks.sdk, psycopg" &>/dev/null; then
       fail "Could not install databricks-sdk + psycopg. Run the setup notebook manually instead."
@@ -499,8 +520,8 @@ grant_sp_access() {
 
   if ! python3 -c "import databricks.sdk" &>/dev/null; then
     warn "databricks-sdk not found in local Python — installing..."
-    if ! $PIP_CMD install -q "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null; then
-      $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" 2>/dev/null || true
+    if ! $PIP_CMD install -q "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" 2>/dev/null; then
+      $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" 2>/dev/null || true
     fi
     if ! python3 -c "import databricks.sdk" &>/dev/null; then
       warn "Could not install databricks-sdk. SP grants will be handled"

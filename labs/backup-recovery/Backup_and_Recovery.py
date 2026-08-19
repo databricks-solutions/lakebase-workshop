@@ -31,7 +31,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 
@@ -128,10 +128,18 @@ def _create_branch(branch_id, source_branch_id, *, ttl_seconds=None, no_expiry=F
             branch_id=branch_id,
         ).wait()
         print(f"✓ Branch created: {result.name}")
+        show_view_link(
+            f"View the '{branch_id}' branch in Lakebase",
+            lakebase_project_url(branch=branch_id),
+        )
         return result
     except Exception as e:
         if "already exists" in str(e).lower() and not recreate:
             print(f"Branch {branch_id} already exists — continuing")
+            show_view_link(
+                f"View the '{branch_id}' branch in Lakebase",
+                lakebase_project_url(branch=branch_id),
+            )
             return None
         raise
 

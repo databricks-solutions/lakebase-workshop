@@ -2,12 +2,12 @@
 
 Work with PostgreSQL's full feature set: CRUD, JSONB documents, array operators, audit triggers, and transactions.
 
-## Labs
+## What to run
 
-| Order | Lab | What You'll Learn |
-|-------|-----|-------------------|
-| 1 | `Data_Operations` | JSONB queries, array filtering, CRUD with audit trail, transactions |
-| 2 | `Advanced_Postgres.sql` | CTEs, window functions, advanced JSONB operators, system metadata queries |
+| Order | Open this | What You'll Learn |
+|-------|-----------|-------------------|
+| 1 | [`Data_Operations.py`](Data_Operations.py) | JSONB queries, array filtering, CRUD with audit trail, transactions |
+| 2 | [`Advanced_Postgres.sql`](Advanced_Postgres.sql) | CTEs, window functions, advanced JSONB operators, system metadata queries |
 
 ## Prerequisites
 
@@ -22,9 +22,11 @@ Work with PostgreSQL's full feature set: CRUD, JSONB documents, array operators,
 
 ## Documentation
 
+- [Connect to your database](https://docs.databricks.com/aws/en/oltp/projects/connect)
 - [SQL Editor](https://docs.databricks.com/aws/en/oltp/projects/sql-editor)
 - [Postgres clients](https://docs.databricks.com/aws/en/oltp/projects/postgres-clients)
 
 ## Notes
 
-`Advanced_Postgres.sql` is a standalone SQL file — run it via `psql`, a SQL client, or the API Tester in the Lab Console app.
+- **`Data_Operations`** uses the shared OAuth + `psycopg` helper (simplest for notebooks).
+- **`Advanced_Postgres.sql`** — prefer the [Lakebase SQL Editor](https://docs.databricks.com/aws/en/oltp/projects/sql-editor). Set `search_path` to your user schema first. For desktop clients, use a [native Postgres password](https://docs.databricks.com/aws/en/oltp/projects/postgres-clients) role from **Connect** (not hourly OAuth). You can also paste statements into the Lab Console API Tester.

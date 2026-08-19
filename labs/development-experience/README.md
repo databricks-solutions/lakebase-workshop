@@ -2,13 +2,15 @@
 
 Explore Lakebase's developer-focused features: Git-like database branching, autoscaling serverless compute, and compute resilience (high availability + read replicas).
 
-## Labs
+> **Layout note:** This is the only lab folder with **three notebooks**. Run them in order (1 → 2 → 3). Every other workshop topic is a single notebook in its own folder — see [`labs/README.md`](../README.md).
 
-| Order | Lab | What You'll Learn |
-|-------|-----|-------------------|
-| 1 | `Branches_and_Environments` | Create isolated dev branches, verify schema isolation, set branch TTLs |
-| 2 | `Autoscaling_and_Compute` | Inspect CU ranges, resize endpoints, understand scale-to-zero |
-| 3 | `High_Availability_and_Replicas` | Multi-AZ failover, `-ro` read routing, read replicas, HA + autoscaling constraints |
+## What to run
+
+| Order | Open this | What You'll Learn |
+|-------|-----------|-------------------|
+| 1 | [`Branches_and_Environments.py`](Branches_and_Environments.py) | Create isolated dev branches, verify schema isolation, set branch TTLs |
+| 2 | [`Autoscaling_and_Compute.py`](Autoscaling_and_Compute.py) | Inspect CU ranges, resize endpoints, understand scale-to-zero |
+| 3 | [`High_Availability_and_Replicas.py`](High_Availability_and_Replicas.py) | Multi-AZ failover, `-ro` read routing, read replicas, HA + autoscaling constraints |
 
 ## Prerequisites
 

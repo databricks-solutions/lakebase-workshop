@@ -2,15 +2,23 @@
 
 Sync Delta Lake tables from the Lakehouse into Lakebase for low-latency serving.
 
-## Labs
+## What to run
 
-| Lab | What You'll Learn |
-|-----|-------------------|
-| `Reverse_ETL` | Create a Delta source table (or use your own), set up a synced table, monitor sync status, observe incremental changes |
+| Open this | What You'll Learn |
+|-----------|-------------------|
+| [`Reverse_ETL.py`](Reverse_ETL.py) | Create a Delta source table (or use your own), set up a synced table, monitor sync status, observe incremental changes |
 
 ## Prerequisites
 
 - Complete **`00_Setup_Lakebase_Project`** (foundation)
+
+## How it works
+
+Synced tables (Reverse ETL) copy Unity Catalog data into Lakebase Postgres so applications can run fast lookups. Creating a synced table gives you a **Lakeflow sync pipeline** plus a serving table in Postgres (treat as read-only). Diagrams from the [official docs](https://docs.databricks.com/aws/en/oltp/projects/sync-tables):
+
+![Architecture: lakehouse → synced tables → Lakebase → applications](../../docs/images/reverse-etl-architecture.png)
+
+![Source UC table, UC synced table, and Postgres table relationship](../../docs/images/reverse-etl-three-table-flow.png)
 
 ## Bring Your Own Data
 
@@ -20,9 +28,10 @@ If you don't have a table ready, the lab creates a catalog, schema, and sample d
 
 ## Key Concepts
 
-- **Synced tables** — Automatic one-way sync from Delta Lake → Lakebase
-- **Change Data Feed (CDF)** — Delta table feature that tracks row-level changes for incremental sync
-- **Service Principal grants** — Required for the sync pipeline to write into Lakebase
+- **Synced tables** — Managed one-way copy from Unity Catalog → Lakebase (control-plane object in UC + Postgres serving table)
+- **Sync pipeline** — Managed Lakeflow pipeline that refreshes both surfaces from the source
+- **Change Data Feed (CDF)** — Delta feature required for Triggered / Continuous incremental sync
+- **Service Principal grants** — Required for the sync pipeline (and Lab Console) to access synced tables in Lakebase
 
 ## Sync Pipeline Modes
 
@@ -73,6 +82,8 @@ For Snapshot and Triggered modes, the initial sync runs automatically on creatio
 - [Sync modes reference](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#sync-modes)
 - [Schedule syncs with Lakeflow Jobs](https://docs.databricks.com/aws/en/oltp/projects/sync-tables#schedule-or-trigger-subsequent-syncs)
 - [Use Delta Lake change data feed](https://docs.databricks.com/aws/en/delta/delta-change-data-feed)
+- [Unity Catalog Access](../unity-catalog-access/) — federated live reads (no copy); complementary to synced tables
+- [Lakehouse Sync](../lakehouse-sync/) — Postgres → Delta CDC history
 
 ## Notes
 

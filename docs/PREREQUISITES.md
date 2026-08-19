@@ -34,6 +34,7 @@ Before the session, confirm:
   (example shape: `https://dbc-xxxxxxxx-xxxx.cloud.databricks.com` or `https://<name>.cloud.databricks.com`)
 - [ ] **Lakebase** is available in that workspace (ask your workspace admin if unsure)
 - [ ] You can create notebooks and run them (standard user access is usually enough)
+- [ ] **Unity Catalog:** participants either have a catalog named `main` with `USE CATALOG`, `CREATE SCHEMA`, and `CREATE TABLE`, **or** at least one participant has `CREATE CATALOG` on the metastore (so the group can create a catalog and point the UC labs at it). The **Unity Catalog Access** lab (`labs/unity-catalog-access/`) also needs `CREATE CATALOG` (or a facilitator who registers `lb_fed_<user>` catalogs) plus a **Serverless SQL Warehouse** for federated queries.
 
 Keep your workspace URL handy for the auth step below.
 
@@ -122,7 +123,7 @@ If that command is missing or fails with an unknown-command error, your CLI is t
 | # | Prerequisite | Done? |
 |---|--------------|-------|
 | 1 | Cloned [databricks-solutions/lakebase-workshop](https://github.com/databricks-solutions/lakebase-workshop) | ☐ |
-| 2 | Can sign into **your** Databricks workspace; Lakebase available | ☐ |
+| 2 | Can sign into **your** Databricks workspace; Lakebase available; UC catalog `main` (or someone with `CREATE CATALOG`) | ☐ |
 | 3 | Databricks CLI ≥ **0.294.0** (`databricks --version`) | ☐ |
 | 4 | Ran `databricks auth login … --profile lakebase-workshop` successfully | ☐ |
 | 5 | Python 3.11+ available (`python3 --version`) | ☐ |

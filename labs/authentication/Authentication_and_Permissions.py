@@ -18,7 +18,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 
@@ -58,18 +58,19 @@ show_app_link("auth", "Auth & Permissions")
 # MAGIC %md
 # MAGIC ## 2. OAuth Database Credentials
 # MAGIC
-# MAGIC Lakebase uses **OAuth tokens** (not static passwords) for database
-# MAGIC authentication. Tokens are generated via the Databricks SDK and have
-# MAGIC a **1-hour TTL**. Open connections remain active even after token expiry —
-# MAGIC expiration is only enforced at login.
+# MAGIC For **notebooks and apps**, use **OAuth tokens** as the Postgres password: mint a short-lived
+# MAGIC credential with the SDK (`1-hour TTL` at login) and connect with `sslmode=require`.
+# MAGIC Open connections remain active after token expiry — expiration is only enforced at login.
+# MAGIC Interactive clients (psql, DBeaver, …) should prefer a **native Postgres password** role —
+# MAGIC see section 5.
 # MAGIC
 # MAGIC > **Connection limits (all auth methods):** connections idle for **24 hours** are closed, and
 # MAGIC > any connection alive for more than **3 days** may be closed — design for graceful reconnect.
 # MAGIC >
 # MAGIC > **OAuth vs. pooling:** the built-in **PgBouncer** pooler does **not** support OAuth — use a
-# MAGIC > native **Postgres password** role for PgBouncer-pooled connections (password connections are
-# MAGIC > **disabled by default** on new projects; enable them if needed). Client-side pools that mint a
-# MAGIC > fresh token per connection (below) work fine with OAuth.
+# MAGIC > native **Postgres password** role and the `-pooler` hostname from Connect (port stays `5432`).
+# MAGIC > Password connections are **disabled by default** on new projects until enabled in Settings.
+# MAGIC > Client-side pools that mint a fresh token per connection (below) work fine with OAuth.
 # MAGIC
 # MAGIC **Docs:** [Authentication](https://docs.databricks.com/aws/en/oltp/projects/authentication)
 
@@ -297,18 +298,47 @@ with conn.cursor() as cur:
 # MAGIC %md
 # MAGIC ## 5. Connecting with External Tools
 # MAGIC
-# MAGIC You can connect to Lakebase from any PostgreSQL client. The key
-# MAGIC requirement: you must use an OAuth token as the password.
+# MAGIC Any standard PostgreSQL client works. For **interactive** tools (psql, pgAdmin, DBeaver),
+# MAGIC Databricks recommends a **native Postgres password** role — passwords don't expire hourly
+# MAGIC like OAuth tokens. See [Postgres clients](https://docs.databricks.com/aws/en/oltp/projects/postgres-clients).
 # MAGIC
-# MAGIC ### psql (Command Line)
+# MAGIC > **Note:** Password connections are **disabled by default** on new Autoscaling projects.
+# MAGIC > Enable them under project **Settings → Database connections**, then create a password role
+# MAGIC > under **Roles & Databases → Add role → Password**. Copy the connection string from **Connect**.
+# MAGIC
+# MAGIC ### Recommended: password role + Connect dialog
+# MAGIC
+# MAGIC 1. Lakebase App → your project → **Connect**
+# MAGIC 2. Select branch, compute, database, and a **password** role
+# MAGIC 3. Copy the connection string (includes `sslmode=require`)
 # MAGIC
 # MAGIC ```bash
-# MAGIC # Generate a token
+# MAGIC # Paste the string from Connect (password role)
+# MAGIC psql 'postgresql://role_name:password@ep-….databricks.com/databricks_postgres?sslmode=require'
+# MAGIC ```
+# MAGIC
+# MAGIC | Setting | Value |
+# MAGIC |---------|-------|
+# MAGIC | Host | *(from Connect)* |
+# MAGIC | Port | `5432` |
+# MAGIC | Database | `databricks_postgres` |
+# MAGIC | Username | *(password role name)* |
+# MAGIC | Password | *(role password — does not expire hourly)* |
+# MAGIC | SSL Mode | `require` |
+# MAGIC
+# MAGIC Optional: turn on **Connection pooling** in Connect for high-concurrency apps
+# MAGIC (uses a `-pooler` hostname; still port `5432`; password roles only).
+# MAGIC
+# MAGIC ### Alternative: OAuth token (notebooks / short CLI sessions)
+# MAGIC
+# MAGIC Fine for a quick `psql` session or apps that rotate credentials. Tokens expire after **one hour**
+# MAGIC at login (open connections can stay up longer).
+# MAGIC
+# MAGIC ```bash
 # MAGIC TOKEN=$(databricks postgres generate-database-credential \
 # MAGIC   "projects/<project-id>/branches/production/endpoints/primary" \
 # MAGIC   --profile <profile> -o json | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 # MAGIC
-# MAGIC # Connect
 # MAGIC PGPASSWORD="$TOKEN" psql \
 # MAGIC   -h <endpoint-host> \
 # MAGIC   -U <your-email> \
@@ -316,30 +346,21 @@ with conn.cursor() as cur:
 # MAGIC   --set=sslmode=require
 # MAGIC ```
 # MAGIC
-# MAGIC ### DBeaver / DataGrip / pgAdmin
-# MAGIC
-# MAGIC | Setting | Value |
-# MAGIC |---------|-------|
-# MAGIC | Host | *(endpoint host from notebook 00)* |
-# MAGIC | Port | 5432 |
-# MAGIC | Database | `databricks_postgres` |
-# MAGIC | Username | *(your Databricks email)* |
-# MAGIC | Password | *(OAuth token — regenerate every hour)* |
-# MAGIC | SSL Mode | `require` |
-# MAGIC
-# MAGIC > **Tip:** Some tools support "password command" to auto-refresh.
-# MAGIC > Set it to the `databricks postgres generate-database-credential` command above.
+# MAGIC > **Tip:** Some tools support a "password command" that re-runs
+# MAGIC > `databricks postgres generate-database-credential` so OAuth stays fresh.
 
 # COMMAND ----------
 
-print("Your connection details:")
+print("Your connection details (this notebook uses OAuth):")
 print(f"  Host:     {host}")
 print(f"  Port:     5432")
 print(f"  Database: databricks_postgres")
 print(f"  Username: {user_email}")
 print(f"  SSL:      require")
-print(f"\n  Generate a token with:")
+print(f"\n  OAuth token (CLI):")
 print(f'  databricks postgres generate-database-credential "{ENDPOINT_NAME}" --profile <your-profile> -o json')
+print(f"\n  For psql / DBeaver / pgAdmin: prefer a password role from the Lakebase App Connect dialog")
+print(f"  (Settings → Database connections → enable Password if needed).")
 
 # COMMAND ----------
 

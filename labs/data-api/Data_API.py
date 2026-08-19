@@ -40,7 +40,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "requests>=2.31" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "requests>=2.31" "protobuf>=5.29.5,<6" --quiet
 
 # COMMAND ----------
 
@@ -191,6 +191,10 @@ if data_api:
     print(f"  URL:              {REST_ENDPOINT or '(not reported)'}")
     print(f"  Exposed schemas:  {getattr(status, 'db_schemas', None)}")
     print(f"  Max rows:         {getattr(status, 'db_max_rows', None)}")
+    show_view_link(
+        "View your Lakebase project (Data API settings)",
+        lakebase_project_url(),
+    )
 
 # COMMAND ----------
 

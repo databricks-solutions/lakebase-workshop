@@ -215,6 +215,28 @@ def drop_uc_table(ctx: h.Ctx, full_name: str, action: Action, dry_run: bool) -> 
         action.detail = f"{type(e).__name__}: {str(e)[:200]}"
 
 
+def drop_postgres_catalog(ctx: h.Ctx, catalog_id: str, action: Action, dry_run: bool) -> None:
+    """Unregister a Lakebase→UC federated catalog (labs/unity-catalog-access).
+
+    Deletes the Unity Catalog entry only — the Postgres database is untouched.
+    """
+    resource = catalog_id if catalog_id.startswith("catalogs/") else f"catalogs/{catalog_id}"
+    try:
+        ctx.w.postgres.get_catalog(name=resource)
+    except Exception:
+        action.status = "absent"
+        return
+    if dry_run:
+        action.status = "would-delete"
+        return
+    try:
+        ctx.w.postgres.delete_catalog(name=resource).wait()
+        action.status = "deleted"
+    except Exception as e:
+        action.status = "error"
+        action.detail = f"{type(e).__name__}: {str(e)[:200]}"
+
+
 def drop_pg_table(conn, schema: str, table: str, action: Action, dry_run: bool) -> None:
     if table in SEEDED_TABLES:
         action.status = "refused"
@@ -314,7 +336,7 @@ def main() -> int:
     for kind, target in actions:
         if kind == "branch" and args.keep_branches:
             continue
-        if kind in ("uc_table", "synced_table", "online_table") and args.keep_uc:
+        if kind in ("uc_table", "synced_table", "online_table", "postgres_catalog") and args.keep_uc:
             continue
         action = report.add(kind, target)
         if kind == "branch":
@@ -328,6 +350,8 @@ def main() -> int:
             )
         elif kind == "uc_table":
             drop_uc_table(ctx, target, action, args.dry_run)
+        elif kind == "postgres_catalog":
+            drop_postgres_catalog(ctx, target, action, args.dry_run)
         elif conn is None:
             action.status = "skipped"
             action.detail = "no Postgres connection"

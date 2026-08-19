@@ -216,6 +216,17 @@ def _check_uc_row_count(ctx: h.Ctx, arg: str) -> tuple[bool, str]:
     return ok, f"{table}: {detail}"
 
 
+def _check_postgres_catalog_exists(ctx: h.Ctx, catalog_id: str) -> tuple[bool, str]:
+    """arg: Unity Catalog id registered via w.postgres.create_catalog (e.g. lb_fed_user)."""
+    resource = catalog_id if catalog_id.startswith("catalogs/") else f"catalogs/{catalog_id}"
+    try:
+        cat = ctx.w.postgres.get_catalog(name=resource)
+    except Exception as e:
+        return False, f"{type(e).__name__}: {str(e)[:160]}"
+    db = getattr(getattr(cat, "status", None), "postgres_database", None) or "?"
+    return True, f"{resource} → {db}"
+
+
 _WAREHOUSE_CACHE: dict[str, str] = {}
 
 
@@ -242,6 +253,7 @@ SDK_CHECKS = {
     "synced_table_pipeline_ok": _check_synced_table_pipeline_ok,
     "online_table_ok": _check_online_table_ok,
     "uc_row_count": _check_uc_row_count,
+    "postgres_catalog_exists": _check_postgres_catalog_exists,
 }
 
 

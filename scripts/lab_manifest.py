@@ -6,11 +6,12 @@ checks in `validate_workshop.py`. It is deliberately stdlib-only so CI can impor
 it without installing the Databricks SDK.
 
 Placeholders usable in `sql`, `creates`, and `params` values:
-    {schema}     participant Postgres schema  (lakebase_lab_<user>)
-    {catalog}    Unity Catalog catalog        (main)
-    {uc_schema}  Unity Catalog schema         (lakebase_lab_<user>)
-    {project}    Lakebase project id          (lakebase-lab-<user>)
-    {user}       participant email
+    {schema}       participant Postgres schema  (lakebase_lab_<user>)
+    {catalog}      Unity Catalog catalog        (main)
+    {uc_schema}    Unity Catalog schema         (lakebase_lab_<user>)
+    {fed_catalog}  Federated Lakebase UC catalog (lb_fed_<user>)
+    {project}      Lakebase project id          (lakebase-lab-<user>)
+    {user}         participant email
 """
 
 from __future__ import annotations
@@ -403,6 +404,28 @@ LABS: tuple[Lab, ...] = (
         notes="Longest of the branch labs (three branch creates plus endpoint waits). "
         "The checkpoint branch is created with no_expiry=True, so it survives forever "
         "unless reset removes it — the main source of drift between runs.",
+    ),
+    # ------------------------------------------------------------------ #
+    Lab(
+        id="uc_access",
+        path="labs/unity-catalog-access/Unity_Catalog_Access.py",
+        order=125,
+        timeout_s=900,
+        requires=("setup",),
+        sentinels=(
+            "✓ Unity Catalog catalog ready:",
+            "✓ Direct Postgres read:",
+            "Comparison reminder:",
+        ),
+        forbidden=(REPAIR_WARNING,),
+        checks=(
+            sdk("federated UC catalog exists", "postgres_catalog_exists:{fed_catalog}"),
+            sql("seeded products still readable directly", "SELECT count(*) FROM {schema}.products", ">= 8"),
+        ),
+        creates=("postgres_catalog:{fed_catalog}",),
+        notes="Registers databricks_postgres as a read-only UC catalog (lb_fed_<user>). "
+        "Needs CREATE CATALOG. Federated SQL itself is exercised in the SQL Editor "
+        "(Serverless warehouse), not asserted here.",
     ),
     # ------------------------------------------------------------------ #
     Lab(

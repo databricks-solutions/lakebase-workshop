@@ -48,10 +48,11 @@ After the foundation, participants follow a track based on their role. Each trac
 | Order | Lab | Location | What It Covers |
 |-------|-----|----------|----------------|
 | 1 | Reverse ETL | `labs/reverse-etl/` | Sync Delta Lake tables into Lakebase |
-| 2 | Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
-| 3 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
+| 2 | Unity Catalog Access | `labs/unity-catalog-access/` | Register Postgres as a federated read-only UC catalog |
+| 3 | Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Sync Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
+| 4 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
 
-**Key narrative:** *"Move data both ways between Lakebase and the Lakehouse natively — and use Lakebase as the online feature store."*
+**Key narrative:** *"Query Lakebase live from the Lakehouse via Unity Catalog, move data both ways when you need a copy, and use Lakebase as the online feature store."*
 
 #### Platform Architects
 
@@ -68,13 +69,14 @@ After the foundation, participants follow a track based on their role. Each trac
 
 ### All Labs Reference
 
-Every lab lives directly in `labs/`. No track folder structure — tracks are a facilitation guide, not a file hierarchy.
+Every lab lives directly in `labs/`. No track folder structure — tracks are a facilitation guide, not a file hierarchy. Almost every folder has one notebook; **`development-experience/`** is the exception (three notebooks). See `labs/README.md` for “open this file” links.
 
 | Lab | Location | What It Covers |
 |-----|----------|----------------|
 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
 | Data API | `labs/data-api/` | PostgREST REST access, `authenticator` role, OAuth bearer, RLS |
 | Reverse ETL | `labs/reverse-etl/` | Synced tables from Delta Lake |
+| Unity Catalog Access | `labs/unity-catalog-access/` | Federated read-only UC catalog over Postgres |
 | Lakehouse Sync *(Public Preview)* | `labs/lakehouse-sync/` | Lakebase → Unity Catalog Delta via Lakebase Change Data Feed (UI-configured) |
 | Development Experience | `labs/development-experience/` | Branching, autoscaling, scale-to-zero, high availability + read replicas |
 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
@@ -267,6 +269,14 @@ For a guided workshop, direct participants to specific paths based on the timing
 3. Check sync status
 4. Key talking point: *"Your analytics lakehouse data, served at OLTP speed."*
 
+#### Unity Catalog Access — Federated Catalog
+
+1. Contrast **copy** (synced tables / CDF) vs **live federated read** (this lab)
+2. Register `databricks_postgres` as a UC catalog (`lb_fed_<user>`) via the notebook SDK call (or Catalog Explorer → Create catalog → Lakebase Postgres)
+3. In the SQL Editor, select a **Serverless** warehouse and `SELECT` from `{catalog}.{schema}.products`
+4. Key talking point: *"Register once — Lakehouse SQL and dashboards can read live OLTP data under Unity Catalog governance, without a sync pipeline."*
+5. **Note:** Needs `CREATE CATALOG` + Serverless SQL Warehouse. See `labs/unity-catalog-access/`.
+
 #### Lakehouse Sync — Lakebase → Delta *(Public Preview, UI walkthrough)*
 
 1. Confirm the **Lakebase Change Data Feed** preview is enabled (workspace Previews page)
@@ -430,6 +440,8 @@ Lakebase-Workshop/
 │   │   └── Lakebase_Search.py
 │   ├── reverse-etl/                            # Synced tables from Delta
 │   │   └── Reverse_ETL.py
+│   ├── unity-catalog-access/                   # Federated read-only UC catalog over Postgres
+│   │   └── Unity_Catalog_Access.py
 │   ├── lakehouse-sync/                         # Lakebase → Delta CDC / Change Data Feed (Public Preview)
 │   │   └── README.md
 │   ├── observability/                          # pg_stat views, monitoring
