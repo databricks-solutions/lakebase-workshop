@@ -38,6 +38,97 @@ warn() { echo -e "  ${YELLOW}⚠ $1${RESET}"; }
 fail() { echo -e "  ${RED}✗ $1${RESET}"; exit 1; }
 ask()  { echo -en "  ${BOLD}$1${RESET} "; }
 
+# Vite 6 (the Lab Console frontend) needs Node 18+.
+NODE_MIN_MAJOR=18
+
+node_major() {
+  local ver
+  ver="$(node --version 2>/dev/null || true)"
+  ver="${ver#v}"
+  echo "${ver%%.*}"
+}
+
+node_is_ok() {
+  command -v npm >/dev/null 2>&1 || return 1
+  command -v node >/dev/null 2>&1 || return 1
+  local major
+  major="$(node_major)"
+  [[ "$major" =~ ^[0-9]+$ ]] || return 1
+  [[ "$major" -ge "$NODE_MIN_MAJOR" ]]
+}
+
+_refresh_node_path() {
+  if command -v brew >/dev/null 2>&1; then
+    local prefix
+    prefix="$(brew --prefix 2>/dev/null || true)"
+    if [[ -n "$prefix" && -d "$prefix/bin" ]]; then
+      export PATH="$prefix/bin:$PATH"
+    fi
+  fi
+  if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+    # shellcheck disable=SC1090
+    . "$HOME/.nvm/nvm.sh"
+  fi
+  hash -r 2>/dev/null || true
+}
+
+# Install Node.js if missing or too old. Used when deploying the Lab Console so
+# participants don't have to install it as a separate prerequisite.
+ensure_nodejs() {
+  if node_is_ok; then
+    ok "Node.js $(node --version)"
+    return 0
+  fi
+
+  if command -v node >/dev/null 2>&1; then
+    warn "Node.js $(node --version) is too old — the frontend build needs v${NODE_MIN_MAJOR}+"
+  else
+    info "Node.js ${NODE_MIN_MAJOR}+ is needed to build the Lab Console UI."
+  fi
+
+  echo ""
+  ask "Install Node.js now? (Y/n):"
+  read -r INSTALL_NODE
+  INSTALL_NODE="${INSTALL_NODE:-Y}"
+  if [[ ! "$INSTALL_NODE" =~ ^[Yy] ]]; then
+    return 1
+  fi
+
+  if command -v brew >/dev/null 2>&1; then
+    info "Installing Node.js with Homebrew (this can take a minute)..."
+    if brew list node >/dev/null 2>&1; then
+      brew upgrade node || true
+    else
+      brew install node || true
+    fi
+  elif [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+    info "Installing Node.js 20 via nvm..."
+    # shellcheck disable=SC1090
+    . "$HOME/.nvm/nvm.sh"
+    nvm install 20 && nvm use 20 || true
+  elif command -v apt-get >/dev/null 2>&1; then
+    info "Installing Node.js with apt-get (may need your password)..."
+    sudo apt-get update -qq && sudo apt-get install -y nodejs npm || true
+  else
+    warn "No supported package manager found (Homebrew, nvm, or apt)."
+  fi
+
+  _refresh_node_path
+
+  if node_is_ok; then
+    ok "Node.js $(node --version) installed"
+    return 0
+  fi
+
+  if command -v node >/dev/null 2>&1; then
+    warn "Node.js is now $(node --version), but the build needs v${NODE_MIN_MAJOR}+"
+  else
+    warn "Could not install Node.js automatically."
+  fi
+  info "Install Node.js ${NODE_MIN_MAJOR}+ from https://nodejs.org (or: brew install node), then re-run this script."
+  return 1
+}
+
 banner
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -99,6 +190,16 @@ if ! command -v databricks &>/dev/null; then
   fi
 fi
 ok "Databricks CLI $(databricks --version 2>&1 | head -1)"
+
+# Node.js is only required to build the Lab Console UI (deploy option 2 below).
+# setup.sh installs it then if missing — no need to fail here.
+if node_is_ok; then
+  ok "Node.js $(node --version)"
+elif command -v node >/dev/null 2>&1; then
+  warn "Node.js $(node --version) is below v${NODE_MIN_MAJOR} — setup will upgrade it if you deploy the app"
+else
+  info "Node.js not found yet — setup will install it if you deploy the Lab Console app"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. Connect to workspace
@@ -249,7 +350,17 @@ DEPLOYED_APP=false
 # Pre-flight check: the Lab Console app binds to a Lakebase project as its
 # `postgres` resource. If the facilitator hasn't created their project yet,
 # the resource attachment + SP grant steps below will fail with confusing
-# "No endpoints" errors. Offer to create it now (or run the notebook manually).
+# "No endpoints" errors. Always try to auto-create; if that fails, tell them
+# to run the setup notebook (the same work the old "M" path asked them to do).
+tell_run_setup_notebook() {
+  echo ""
+  info "Auto-create could not finish. Run this notebook in your Databricks workspace (all cells):"
+  info "  Workspace > Users > ${USER_EMAIL:-<your-email>} > .bundle > lakebase-workshop > dev > files > notebooks > 00_Setup_Lakebase_Project"
+  info ""
+  info "Then re-run: ${BOLD}bash setup.sh${RESET}"
+  echo ""
+}
+
 ensure_lakebase_project() {
   local project_id="$1"
   local schema="$2"
@@ -265,27 +376,9 @@ ensure_lakebase_project() {
   echo ""
   warn "No Lakebase project found for your account."
   info "Project ID: $project_id"
-  echo ""
   info "The Lab Console app needs an existing Lakebase project to attach to."
-  info "Choose how to proceed:"
+  info "Creating it now (~2-3 min)..."
   echo ""
-  echo -e "    ${BOLD}M)${RESET} Manually run ${BOLD}notebooks/00_Setup_Lakebase_Project${RESET} in your workspace,"
-  echo -e "       then re-run ${BOLD}bash setup.sh${RESET}"
-  echo -e "    ${BOLD}A)${RESET} Auto-create the project + seed schema now (~2-3 min)"
-  echo ""
-  ask "Choice (A/m):"
-  read -r CREATE_CHOICE
-  CREATE_CHOICE="${CREATE_CHOICE:-A}"
-
-  if [[ "$CREATE_CHOICE" =~ ^[Mm] ]]; then
-    echo ""
-    info "Please open this notebook in your Databricks workspace and run all cells:"
-    info "  Workspace > Users > $USER_EMAIL > .bundle > lakebase-workshop > dev > files > notebooks > 00_Setup_Lakebase_Project"
-    info ""
-    info "Then re-run: ${BOLD}bash setup.sh${RESET}"
-    echo ""
-    fail "Setup paused until the Lakebase project exists."
-  fi
 
   if ! python3 -c "import databricks.sdk, psycopg" &>/dev/null; then
     info "Installing databricks-sdk + psycopg (needed to auto-create the project)..."
@@ -293,7 +386,8 @@ ensure_lakebase_project() {
       $PIP_CMD install -q --break-system-packages "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" 2>/dev/null || true
     fi
     if ! python3 -c "import databricks.sdk, psycopg" &>/dev/null; then
-      fail "Could not install databricks-sdk + psycopg. Run the setup notebook manually instead."
+      tell_run_setup_notebook
+      fail "Could not install databricks-sdk + psycopg, so the project could not be created automatically."
     fi
   fi
 
@@ -381,8 +475,8 @@ PYEOF
     ok "Lakebase project ready"
     return 0
   else
-    warn "Auto-create failed. Run notebooks/00_Setup_Lakebase_Project manually, then re-run setup.sh."
-    return 1
+    tell_run_setup_notebook
+    fail "Auto-create failed. The rest of setup cannot attach the Lab Console until this project exists."
   fi
 }
 
@@ -408,19 +502,49 @@ print(f'lakebase_lab_{name.replace(\"-\", \"_\")}')
 
   ensure_lakebase_project "$PROJECT_ID" "$PG_SCHEMA" "$PROFILE"
 
+  # The app's UI is a build artifact that is not committed (frontend/dist is
+  # gitignored), so it must be built here or the deployed app serves no UI.
   FRONTEND_DIR="$SCRIPT_DIR/apps/lakebase-lab-console/frontend"
+  FRONTEND_BUILT=false
+
+  ensure_nodejs || true
+
   if [[ -f "$FRONTEND_DIR/package.json" ]]; then
-    if command -v npm &>/dev/null; then
-      info "Building frontend..."
-      (cd "$FRONTEND_DIR" && npm install --silent && npm run build --silent) 2>&1 | tail -3 || true
-      if [[ -f "$FRONTEND_DIR/dist/index.html" ]]; then
+    if command -v npm >/dev/null 2>&1; then
+      info "Building frontend (this takes ~30s)..."
+      BUILD_LOG="$(mktemp -t lakebase-frontend-build.XXXXXX)"
+      if (cd "$FRONTEND_DIR" && npm install --silent && npm run build --silent) \
+           >"$BUILD_LOG" 2>&1 && [[ -f "$FRONTEND_DIR/dist/index.html" ]]; then
+        FRONTEND_BUILT=true
+        rm -f "$BUILD_LOG"
         ok "Frontend built"
       else
-        warn "Frontend build may have failed — the app will run without a UI"
+        warn "Frontend build failed. Last lines of the build output:"
+        tail -15 "$BUILD_LOG" 2>/dev/null | sed 's/^/      /'
+        info "Full build log: $BUILD_LOG"
       fi
     else
-      warn "npm not found — skipping frontend build"
-      info "Install Node.js to build the frontend: https://nodejs.org"
+      warn "Node.js / npm was not found, so the app's UI cannot be built."
+      info "Install Node.js (it includes npm), then re-run this script:"
+      info "  https://nodejs.org  —  or: brew install node"
+    fi
+  else
+    warn "Frontend sources not found at $FRONTEND_DIR"
+  fi
+
+  if [[ "$FRONTEND_BUILT" != true ]]; then
+    echo ""
+    warn "Deploying the app now would give you a working API with no user interface —"
+    warn "opening it in a browser shows a 'UI not built' page instead of the console."
+    info "The notebook labs do not use the app, so they are unaffected."
+    echo ""
+    ask "Deploy the app anyway, without its UI? (y/N):"
+    read -r DEPLOY_WITHOUT_UI
+    if [[ ! "${DEPLOY_WITHOUT_UI:-N}" =~ ^[Yy] ]]; then
+      info "Skipping the app — deploying the labs only."
+      info "After installing Node.js, get the app with:"
+      info "  bash setup.sh   (choose option 2)"
+      DEPLOY_CHOICE=1
     fi
   fi
 fi

@@ -13,7 +13,7 @@ Before the workshop:
 - [ ] Databricks workspace with Lakebase enabled
 - [ ] Each participant has workspace access with permissions to create Lakebase projects
 - [ ] Python 3.11+ installed on each participant's machine
-- [ ] (Facilitator only) Node.js installed for building the Lab Console frontend
+- [ ] Homebrew (macOS) or apt (Linux) available if you will deploy the Lab Console — `setup.sh` uses it to install Node.js
 
 ## Workshop Structure
 
@@ -164,8 +164,9 @@ everything including the app.
 
 The setup script will also:
 - **Ensure your Lakebase project exists** — if you haven't already run the setup
-  notebook, you'll be prompted to either auto-create the project + seed schema
-  inline, or pause and run `00_Setup_Lakebase_Project` first (then re-run setup.sh)
+  notebook, it auto-creates the project + seed schema (~2–3 min). If that fails,
+  it prints the path to `00_Setup_Lakebase_Project` so you can run it and re-run
+  `setup.sh`.
 - **Attach a postgres resource** to the app (your Lakebase project), giving the SP the `postgres` OAuth scope
 - **Grant the SP access** to your schema so the app can connect to your project
 
@@ -184,6 +185,12 @@ databricks bundle run lakebase_lab_console --target dev --profile lakebase-works
 
 The app is named `lakebase-lab-console` and is accessible to all workspace users
 at **Compute → Apps → lakebase-lab-console**.
+
+> **The frontend build is not optional.** `frontend/dist/` is gitignored, so a fresh
+> clone contains no UI. Skipping `npm run build` (or deploying from a machine without
+> Node.js) produces an app that starts and reports healthy but serves no interface.
+> Confirm the build landed with `curl <app-url>/api/health` — `frontend_built` must be
+> `true`.
 
 > **Per-user SP grant required.** Each participant must grant the app's Service
 > Principal access to their Lakebase project. This happens automatically in Step 6
@@ -526,7 +533,9 @@ flags match what the labs teach.
 | Lab Console shows wrong user | Hard-refresh the browser to pick up fresh headers |
 | "does not have required scopes: postgres" | The app's postgres resource is not attached. Re-run `setup.sh` with option 2, or attach manually in the Apps UI. |
 | `function databricks_create_role(...) does not exist` | The `databricks_auth` extension isn't installed in the Postgres database. Run `CREATE EXTENSION IF NOT EXISTS databricks_auth;` (idempotent, per-database). The current setup notebook + App Deployment lab do this automatically in Step 6. |
-| Facilitator deploys app and sees "project wasn't there" | `setup.sh` now performs a pre-flight check before option 2 and offers to auto-create the project (or run the notebook manually first). |
+| Facilitator deploys app and sees "project wasn't there" | `setup.sh` now performs a pre-flight check before option 2 and auto-creates the project. If auto-create fails, it tells you to run `00_Setup_Lakebase_Project` and re-run setup. |
+| Opening the app returns `{"detail":"Not Found"}` | The app was deployed **without a frontend build** — `frontend/dist/` is gitignored, so a fresh clone has no UI until `npm run build` runs. Almost always means Node.js/npm was missing on the deploying machine. Re-run `setup.sh` → option 2 and accept the Node.js install (Homebrew, nvm, or apt). Current builds serve an explanatory page (HTTP 503) instead of a bare 404, and `setup.sh` refuses to deploy the app UI-less unless you explicitly opt in. |
+| Opening the app shows "user interface was not deployed" | Same root cause as above — the backend is healthy but the UI bundle is missing. Verify with `/api/health` (`frontend_built: false`), then rebuild and redeploy. |
 
 ## Credential Hygiene & Shared-SP Threat Model
 

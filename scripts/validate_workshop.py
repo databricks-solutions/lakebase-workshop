@@ -73,6 +73,8 @@ REGRESSIONS: list[tuple[str, str]] = [
     # Trigger Sync calls pipelines.start_update; CAN_VIEW only reads status.
     ("grant CAN_RUN (not CAN_VIEW) on sync pipelines the app triggers",
      r"permission_level\s*=\s*PipelinePermissionLevel\.CAN_VIEW"),
+    # setup.sh auto-creates the Lakebase project; do not reintroduce M vs A.
+    ("setup.sh must auto-create the project (no M vs A prompt)", r"Choice \(A/m\)"),
 ]
 
 # Lab folders allowed to ship without a runnable notebook (walkthrough-only).

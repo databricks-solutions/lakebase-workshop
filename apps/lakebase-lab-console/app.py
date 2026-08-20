@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.security import get_auth_mode, log_and_sanitize, resolve_static_file
@@ -79,6 +79,57 @@ app.include_router(data_api_router)
 app.include_router(search_router)
 
 STATIC_DIR = Path(__file__).parent / "frontend" / "dist"
+
+_FRONTEND_MISSING_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lakebase Lab Console — UI not built</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           max-width: 42rem; margin: 4rem auto; padding: 0 1.5rem; line-height: 1.6;
+           color: #1b1b1f; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    p.sub { color: #5a5a68; margin-top: 0; }
+    pre { background: #f4f4f7; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+    code { background: #f4f4f7; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .note { border-left: 3px solid #ff6b35; padding-left: 1rem; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>The app is running, but its user interface was not deployed</h1>
+  <p class="sub">The Lakebase Lab Console backend started correctly &mdash; only the
+  React frontend bundle is missing.</p>
+
+  <p>The UI is a build artifact that is not stored in Git, so it has to be built on
+  your machine <em>before</em> the app is deployed. This page means the deployment
+  did not include <code>frontend/dist/</code>, which almost always means
+  <strong>Node.js / npm was not installed</strong> when you ran <code>setup.sh</code>.</p>
+
+  <h2>How to fix it</h2>
+  <p>Install <a href="https://nodejs.org">Node.js</a> (which includes npm), then
+  re-run the build and deploy from the repo root:</p>
+  <pre>cd apps/lakebase-lab-console/frontend
+npm install &amp;&amp; npm run build
+cd ../../..
+databricks bundle deploy --target dev --profile lakebase-workshop
+databricks bundle run lakebase_lab_console --target dev --profile lakebase-workshop</pre>
+  <p>Re-running <code>bash setup.sh</code> and choosing <strong>option 2</strong>
+  does the same thing.</p>
+
+  <p class="note">The notebook labs do not depend on this app &mdash; you can keep
+  working through them while you sort this out.</p>
+
+  <h2>Verify the backend</h2>
+  <p>These endpoints work right now and confirm the backend and Lakebase
+  connection are healthy:
+  <a href="/api/health">/api/health</a> &middot;
+  <a href="/api/whoami">/api/whoami</a> &middot;
+  <a href="/api/dbtest">/api/dbtest</a></p>
+</body>
+</html>
+"""
 
 
 @app.get("/api/whoami")
@@ -162,9 +213,22 @@ if STATIC_DIR.exists():
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        file_path = resolve_static_file(STATIC_DIR, full_path)
-        if file_path is not None:
-            return FileResponse(file_path)
-        return FileResponse(STATIC_DIR / "index.html")
+
+# The UI bundle is a build artifact (frontend/dist is gitignored), so a clone
+# that was deployed without `npm run build` ships the API but no UI. The
+# catch-all is registered either way: without it, every browser request fell
+# through to FastAPI's default handler and rendered a bare {"detail":"Not Found"},
+# which looks like a broken deployment rather than a missing build step.
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Unknown API paths stay JSON 404s instead of being answered with HTML.
+    if full_path.startswith("api/"):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+    if not STATIC_DIR.exists():
+        return HTMLResponse(status_code=503, content=_FRONTEND_MISSING_HTML)
+
+    file_path = resolve_static_file(STATIC_DIR, full_path)
+    if file_path is not None:
+        return FileResponse(file_path)
+    return FileResponse(STATIC_DIR / "index.html")
