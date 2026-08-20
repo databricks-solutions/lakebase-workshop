@@ -38,10 +38,11 @@ Before you begin, make sure you have:
 - **Your own Databricks workspace** with Lakebase enabled
 - **Python 3.11+** on your computer (`python3 --version`)
 - **Databricks CLI ≥ 0.294.0**, logged in via `databricks auth login` (do this ahead of time)
+- **Node.js 18+** — only needed if you deploy the **Lab Console app**. `setup.sh` installs it for you (Homebrew, nvm, or apt) when you choose option 2. You can also install it ahead of time (`node --version`). Not needed for the notebook labs.
 
 Share this with participants ahead of time: **[Prerequisites Guide](docs/PREREQUISITES.md)** (GitHub access, bring-your-own workspace, and auth login).
 
-On workshop day, `setup.sh` installs the remaining Python packages into your active environment (no separate venv required).
+On workshop day, `setup.sh` installs the remaining Python packages into your active environment (no separate venv required). If you deploy the Lab Console app, it also installs Node.js when it is missing.
 
 ## Choose a Lab
 
@@ -98,9 +99,11 @@ The setup notebook (Step 2 above) automatically grants the app access to your da
 | `setup.sh` fails during login | Run `databricks auth login --host <your-workspace-url> --profile lakebase-workshop` manually |
 | Setup notebook hangs on "Waiting for endpoint" | This is normal -- it can take 2-3 minutes. Let it finish. |
 | "password authentication failed" | Your database token expired (they last 1 hour). Re-run the connection cell in your notebook. |
+| Opening the app shows `{"detail":"Not Found"}` | You're on an older deployment whose UI was never built. Re-run `bash setup.sh`, choose **option 2**, and accept the Node.js install when prompted. Current builds show an explanatory page instead. |
+| Opening the app shows "the app is running, but its user interface was not deployed" | The app was deployed without a frontend build. Re-run `bash setup.sh` → **option 2** (setup installs Node.js if needed). The notebook labs are unaffected. |
 | Lab Console shows "Project Not Found" | You haven't run the setup notebook yet. Go back to Step 2. |
 | `function databricks_create_role(...) does not exist` | The `databricks_auth` extension isn't installed in your Postgres database. Run `CREATE EXTENSION IF NOT EXISTS databricks_auth;` once per database — the setup notebook now does this automatically in Step 6. |
-| Deploying the app errors with "No endpoints" before running the setup notebook | Re-run `bash setup.sh` and choose **option 2** — the script now prompts to auto-create your Lakebase project before deploying the app. |
+| Deploying the app errors with "No endpoints" before running the setup notebook | Re-run `bash setup.sh` and choose **option 2** — the script auto-creates your Lakebase project before deploying the app. If auto-create fails, run `00_Setup_Lakebase_Project` and re-run setup. |
 
 ## Resources
 

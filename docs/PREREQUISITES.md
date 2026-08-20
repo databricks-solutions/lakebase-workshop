@@ -51,8 +51,27 @@ Connecting with `databricks auth login` before the workshop is the main time-sav
 | **Databricks CLI** | **≥ v0.294.0** | Needed for Lakebase (`databricks postgres …`). Prefer a current install via Homebrew or the official installer. |
 | **Python 3** | **3.11+** recommended | Used by `setup.sh` and local scripts. Check with `python3 --version`. |
 | **pip** | Comes with Python | `setup.sh` installs Python packages when you run it (see below). |
+| **Node.js** | **18+** (includes npm) | Needed to deploy the **Lab Console app**. `setup.sh` installs it when you choose option 2 (Homebrew, nvm, or apt). You can also install it ahead of time. |
 
 There is **no separate workshop venv to set up ahead of time**. On workshop day, `bash setup.sh` installs the Python packages it needs (`databricks-sdk`, `psycopg`) into your **active** Python/pip environment. You do **not** need to create a virtualenv first unless you prefer to isolate packages yourself.
+
+### Node.js (only if you want the Lab Console app)
+
+The optional **Lab Console** app has a React UI that is **compiled on your machine** during setup — the compiled bundle is deliberately not stored in Git.
+
+You do **not** need to install Node.js ahead of time. When you run `bash setup.sh` and choose **option 2 (Labs + App)**, the script installs Node.js 18+ if it is missing (via Homebrew, nvm, or apt). Confirm with `node --version` afterward if you want.
+
+If you prefer to install it yourself:
+
+```bash
+# macOS (Homebrew)
+brew install node
+
+# or download an installer
+# https://nodejs.org
+```
+
+If you only plan to run the **notebook labs**, you can skip Node.js entirely — `setup.sh` will not install it unless you deploy the app.
 
 ### Install the Databricks CLI
 
@@ -127,6 +146,7 @@ If that command is missing or fails with an unknown-command error, your CLI is t
 | 3 | Databricks CLI ≥ **0.294.0** (`databricks --version`) | ☐ |
 | 4 | Ran `databricks auth login … --profile lakebase-workshop` successfully | ☐ |
 | 5 | Python 3.11+ available (`python3 --version`) | ☐ |
+| 6 | *(Only if deploying the Lab Console app)* Node.js 18+ — `setup.sh` installs this on option 2; optional to install ahead of time (`node --version`) | ☐ |
 
 ---
 
@@ -144,6 +164,7 @@ bash setup.sh
 1. Install/update Python packages into your current pip environment (prompts first)
 2. Reuse your existing `lakebase-workshop` CLI profile if it’s already logged in
 3. Deploy workshop content to **your** workspace
+4. If you choose **option 2**, install Node.js when missing and build + deploy the Lab Console
 
 Then open and **Run All** on the **`00_Setup_Lakebase_Project`** notebook (details in the [README](../README.md)).
 
@@ -158,5 +179,6 @@ Then open and **Run All** on the **`00_Setup_Lakebase_Project`** notebook (detai
 | `postgres` commands missing / unknown | Upgrade the CLI to ≥ **0.294.0** |
 | `pip` / PEP 668 errors on macOS | Let `setup.sh` retry, or create a venv yourself (`python3 -m venv .venv && source .venv/bin/activate`) and re-run setup |
 | Lakebase not available | Ask your workspace admin to enable Lakebase, or use a workspace where it is enabled |
+| Deployed app has no UI (or shows `{"detail":"Not Found"}`) | The UI bundle was missing. Re-run `bash setup.sh`, choose **option 2**, and accept the Node.js install when prompted |
 
 If something still blocks you, reach out **before** the workshop with your OS, `databricks --version`, `python3 --version`, and the exact error message.

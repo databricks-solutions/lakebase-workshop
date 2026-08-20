@@ -117,11 +117,26 @@ def search_ready(payload: Any) -> tuple[bool, str]:
     return bool(ready and table), f"ready={ready} table_exists={table}"
 
 
+def frontend_built(payload: Any) -> tuple[bool, str]:
+    """The UI bundle is a gitignored build artifact, so it can be absent."""
+    built = (payload or {}).get("frontend_built")
+    return bool(built), (
+        "UI bundle present" if built else
+        "no frontend/dist in the deployment — run `npm run build` in "
+        "apps/lakebase-lab-console/frontend, then redeploy"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Checks, grouped by the lab that produces the state they assert on
 # --------------------------------------------------------------------------- #
 def build_checks(ctx: h.Ctx) -> list[ApiCheck]:
     return [
+        # --- deployment integrity ------------------------------------------ #
+        # Every other check below passes on a deployment that shipped no UI,
+        # because the API is unaffected — participants are the ones who find out.
+        ApiCheck("Deployment includes the built frontend", "/api/health",
+                 assertion=frontend_built),
         # --- setup / data ------------------------------------------------- #
         ApiCheck("Dashboard table stats", "/api/data/stats",
                  assertion=stat_at_least("products", 8)),
