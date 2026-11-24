@@ -350,7 +350,18 @@ class RunOutcome:
 
     @property
     def kernel_died(self) -> bool:
-        return "kernel is unresponsive" in f"{self.error} {self.state_message}".lower()
+        # Serverless surfaces a few phrasings for the same flake — catch them all so
+        # run_labs_live retries once instead of treating an environment blip as a lab defect.
+        blob = f"{self.error} {self.state_message}".lower()
+        return any(
+            needle in blob
+            for needle in (
+                "kernel is unresponsive",
+                "kernel exited",
+                "kernel_info_reply",
+                "unable to start python kernel",
+            )
+        )
 
     @property
     def succeeded(self) -> bool:
@@ -396,6 +407,33 @@ def strip_ansi(text: str) -> str:
     return ANSI_RX.sub("", text)
 
 
+# Serverless job tasks install these BEFORE notebook code runs, so labs do not need
+# %restart_python / dbutils.library.restartPython() (which can crash the serverless
+# kernel). Keep feature-engineering off the default list — pinning it next to
+# databricks-sdk sends pip's resolver into a backtracking loop.
+_DEFAULT_LAB_DEPS = (
+    "databricks-sdk>=0.81.0",
+    "psycopg[binary]>=3.0",
+)
+_LAB_ENV_DEPS: dict[str, tuple[str, ...]] = {
+    "feature_store": (
+        "databricks-feature-engineering>=0.13.0",
+        "psycopg[binary]>=3.0",
+    ),
+    "data_api": (
+        "databricks-sdk>=0.81.0",
+        "psycopg[binary]>=3.0",
+        "requests>=2.31",
+    ),
+}
+
+
+def lab_env_dependencies(run_name: str = "") -> tuple[str, ...]:
+    """Pick job-environment deps from the validate-<lab_id> run name when present."""
+    lab_id = run_name.removeprefix("validate-") if run_name.startswith("validate-") else ""
+    return _LAB_ENV_DEPS.get(lab_id, _DEFAULT_LAB_DEPS)
+
+
 def run_notebook(
     ctx: Ctx,
     notebook_path: str,
@@ -406,7 +444,8 @@ def run_notebook(
     poll_s: int = 15,
 ) -> RunOutcome:
     """Run a notebook as a serverless job, then capture per-cell stdout."""
-    from databricks.sdk.service.jobs import NotebookTask, SubmitTask
+    from databricks.sdk.service.compute import Environment
+    from databricks.sdk.service.jobs import JobEnvironment, NotebookTask, SubmitTask
 
     out = RunOutcome()
     started = time.time()
@@ -414,8 +453,16 @@ def run_notebook(
         run_name=run_name,
         tasks=[SubmitTask(
             task_key="lab",
+            environment_key="lab",
             # No cluster spec -> serverless compute, which is what participants use.
             notebook_task=NotebookTask(notebook_path=notebook_path, base_parameters=params or {}),
+        )],
+        environments=[JobEnvironment(
+            environment_key="lab",
+            spec=Environment(
+                environment_version="4",
+                dependencies=list(lab_env_dependencies(run_name)),
+            ),
         )],
     )
     out.run_id = submitted.run_id
@@ -701,5 +748,5 @@ def require_sdk() -> None:
         import psycopg  # noqa: F401
     except ImportError as e:
         say(f"{C.R}Missing dependency:{C.X} {e}")
-        say('Install with: pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6"')
+        say('Install with: pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0"')
         sys.exit(2)

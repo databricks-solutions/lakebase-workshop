@@ -39,9 +39,9 @@ targets:
     default: true
     mode: development
     workspace:
-      profile: azure-lakebase
+      profile: logan-lakebase-workshop
 
   workshop:
     mode: production
     workspace:
-      profile: azure-lakebase
+      profile: logan-lakebase-workshop
