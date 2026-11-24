@@ -265,8 +265,13 @@ def drop_agent_store(ctx: h.Ctx, collection: str, store_id: str, action: Action,
     path = f"{h.AGENTS_API}/{collection}/{store_id}"
     try:
         ctx.w.api_client.do("GET", path)
-    except Exception:
-        action.status = "absent"
+    except Exception as e:
+        # Only a not-found means absent; auth, permission or network errors must not hide a live store.
+        if getattr(e, "error_code", None) in ("RESOURCE_DOES_NOT_EXIST", "NOT_FOUND"):
+            action.status = "absent"
+        else:
+            action.status = "error"
+            action.detail = f"{type(e).__name__}: {str(e)[:200]}"
         return
     if dry_run:
         action.status = "would-delete"

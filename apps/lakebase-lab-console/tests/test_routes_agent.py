@@ -136,3 +136,45 @@ def test_delete_memory_checks_owner(monkeypatch, user):
         routes_agent.delete_memory("e1", user=user)
     assert exc.value.status_code == 404
     assert not any(c[0] == "DELETE" for c in api.calls)
+
+
+def test_put_memory_ignores_entries_at_other_paths(monkeypatch, user):
+    # A server that ignores the path filter returns every entry; only the exact path may be patched.
+    entries = f"{BASE}/memory-stores/lab-jane-doe-memory/entries"
+    other = "memory-stores/lab-jane-doe-memory/entries/e0"
+    name = "memory-stores/lab-jane-doe-memory/entries/e1"
+    pages = {
+        None: {"managed_memory_entries": [{"name": other, "path": "/other.md"}], "next_page_token": "t2"},
+        "t2": {"managed_memory_entries": [{"name": name, "path": "/p.md"}]},
+    }
+    api = _install(monkeypatch, {
+        ("POST", entries): FakeApiError("ALREADY_EXISTS"),
+        ("GET", entries): lambda q, b: pages[q.get("page_token")],
+        ("PATCH", f"{BASE}/{name}"): {"name": name, "path": "/p.md", "content": "new"},
+    })
+    routes_agent.put_memory(routes_agent.PutMemoryRequest(path="/p.md", content="new"), user=user)
+    assert api.calls[-1][:2] == ("PATCH", f"{BASE}/{name}")
+
+
+def test_list_sessions_requests_newest_first(monkeypatch, user):
+    api = _install(monkeypatch, {("GET", f"{BASE}/session-stores/lab-jane-doe-sessions/sessions"): {"sessions": []}})
+    routes_agent.list_sessions(limit=20, user=user)
+    assert api.calls[0][2]["order_by"] == "create_time desc"
+
+
+def test_list_memories_sorts_before_truncating(monkeypatch, user):
+    entries = f"{BASE}/memory-stores/lab-jane-doe-memory/entries"
+    pages = {
+        None: {"managed_memory_entries": [{"name": "x/z", "path": "/z.md"}], "next_page_token": "t2"},
+        "t2": {"managed_memory_entries": [{"name": "x/a", "path": "/a.md"}]},
+    }
+    _install(monkeypatch, {("GET", entries): lambda q, b: pages[q.get("page_token")]})
+    assert [m["path"] for m in routes_agent.list_memories(limit=1, user=user)] == ["/a.md"]
+
+
+def test_missing_entry_does_not_blame_stores(monkeypatch, user):
+    entry = f"{BASE}/memory-stores/lab-jane-doe-memory/entries/e1"
+    _install(monkeypatch, {("GET", entry): FakeApiError("RESOURCE_DOES_NOT_EXIST")})
+    with pytest.raises(HTTPException) as exc:
+        routes_agent.delete_memory("e1", user=user)
+    assert exc.value.status_code == 404 and exc.value.detail == "Memory not found"

@@ -203,6 +203,9 @@ function LongTermPanel() {
       await api.putMemory({ path, content, description: description || undefined })
       setContent('')
       setDescription('')
+      // Leave search mode so the saved entry is visible in the full list.
+      setResults(null)
+      setQuery('')
       loadMemories()
     } catch (e) {
       setError(`Failed to save memory: ${e.message}`)
@@ -214,6 +217,7 @@ function LongTermPanel() {
     setError(null)
     try {
       await api.deleteMemory(id)
+      setResults((r) => r && r.filter((m) => m.memory_id !== id))
       loadMemories()
     } catch (e) {
       setError(`Failed to delete memory: ${e.message}`)

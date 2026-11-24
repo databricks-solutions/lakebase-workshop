@@ -23,8 +23,12 @@ _MEMORY_ID_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 _LAB = "labs/agentic-memory/Agent_Memory"
 
 
-def _call(user: UserContext, method: str, path: str, *, query=None, body=None) -> dict:
-    """Call the agents API, mapping common failures to clear, actionable messages."""
+def _call(user: UserContext, method: str, path: str, *, query=None, body=None, not_found: str | None = None) -> dict:
+    """Call the agents API, mapping common failures to clear, actionable messages.
+
+    ``not_found`` overrides the 404 message for calls on a single session or entry, where a
+    missing resource doesn't mean the stores are missing.
+    """
     try:
         return _get_workspace_client().api_client.do(method, f"{_API}{path}", query=query, body=body) or {}
     except Exception as e:
@@ -34,7 +38,7 @@ def _call(user: UserContext, method: str, path: str, *, query=None, body=None) -
         if code in ("RESOURCE_DOES_NOT_EXIST", "NOT_FOUND") or (not code and "does not exist" in lowered):
             raise HTTPException(
                 404,
-                f"Not found. Run {_LAB} to create your stores "
+                not_found or f"Not found. Run {_LAB} to create your stores "
                 f"({user.session_store_id}, {user.memory_store_id}).",
             )
         if code == "PERMISSION_DENIED" or (not code and "permission denied" in lowered):
@@ -62,7 +66,8 @@ def _check_session_id(session_id: str) -> str:
 
 def _owned_session(user: UserContext, session_id: str) -> dict:
     """Fetch a session and confirm it belongs to the caller (actor_id is not access control)."""
-    s = _call(user, "GET", f"{_sessions_path(user)}/{_check_session_id(session_id)}")
+    s = _call(user, "GET", f"{_sessions_path(user)}/{_check_session_id(session_id)}",
+              not_found="Session not found")
     if s.get("actor_id") != user.email:
         raise HTTPException(404, "Session not found")
     return s
@@ -138,7 +143,7 @@ def list_sessions(limit: int = 20, user: UserContext = Depends(get_current_user)
     limit = clamp_limit(limit, default=20, maximum=100)
     out, token = [], None
     while len(out) < limit:
-        query = {"page_size": 100}
+        query = {"page_size": 100, "order_by": "create_time desc"}
         if token:
             query["page_token"] = token
         resp = _call(user, "GET", _sessions_path(user), query=query)
@@ -162,7 +167,8 @@ def create_session(req: CreateSessionRequest, user: UserContext = Depends(get_cu
 def delete_session(session_id: str, user: UserContext = Depends(get_current_user)):
     """Delete a session and its items (and any child sessions)."""
     _owned_session(user, session_id)
-    _call(user, "DELETE", f"{_sessions_path(user)}/{session_id}", query={"force": True})
+    _call(user, "DELETE", f"{_sessions_path(user)}/{session_id}", query={"force": True},
+          not_found="Session not found")
     return {"status": "deleted", "session_id": session_id}
 
 
@@ -214,10 +220,12 @@ def _entries_path(user: UserContext) -> str:
 
 @router.get("/memories")
 def list_memories(path_prefix: str | None = None, limit: int = 100, user: UserContext = Depends(get_current_user)):
-    """List the caller's memory entries, optionally under a path prefix."""
+    """List the caller's memory entries, optionally under a path prefix, sorted by path."""
     limit = clamp_limit(limit, default=100, maximum=500)
+    # Fetch up to the hard cap before sorting so the first `limit` paths are returned,
+    # not whichever entries the server happened to page first.
     out, token = [], None
-    while len(out) < limit:
+    while len(out) < 500:
         query = {"actor_id": user.email, "page_size": 100}
         if path_prefix:
             query["path_prefix"] = path_prefix
@@ -228,7 +236,26 @@ def list_memories(path_prefix: str | None = None, limit: int = 100, user: UserCo
         token = resp.get("next_page_token")
         if not token:
             break
-    return sorted((_memory_info(m) for m in out[:limit]), key=lambda m: m["path"] or "")
+    return sorted((_memory_info(m) for m in out), key=lambda m: m["path"] or "")[:limit]
+
+
+def _find_entry(user: UserContext, path: str) -> dict | None:
+    """Find the caller's unscoped entry at exactly `path`, across all pages.
+
+    Rechecks the path because some servers ignore the `path` filter and return every entry.
+    """
+    token = None
+    while True:
+        query = {"actor_id": user.email, "path": path, "page_size": 100}
+        if token:
+            query["page_token"] = token
+        resp = _call(user, "GET", _entries_path(user), query=query)
+        for m in resp.get("managed_memory_entries", []):
+            if m.get("path") == path and not m.get("session_id"):
+                return m
+        token = resp.get("next_page_token")
+        if not token:
+            return None
 
 
 @router.post("/memories")
@@ -244,15 +271,14 @@ def put_memory(req: PutMemoryRequest, user: UserContext = Depends(get_current_us
     except HTTPException as e:
         if e.status_code != 409:
             raise
-    existing = _call(user, "GET", _entries_path(user), query={"actor_id": user.email, "path": req.path})
-    match = next((m for m in existing.get("managed_memory_entries", []) if not m.get("session_id")), None)
+    match = _find_entry(user, req.path)
     if match is None:
         raise HTTPException(409, "Memory changed concurrently; retry")
     patch = {"content": req.content}
     if req.description:
         patch["description"] = req.description
     updated = _call(user, "PATCH", "/" + match["name"].lstrip("/"), query={"update_mask": ",".join(patch)},
-                    body=patch)
+                    body=patch, not_found="Memory changed concurrently; retry")
     return _memory_info(updated)
 
 
@@ -261,10 +287,10 @@ def delete_memory(memory_id: str, user: UserContext = Depends(get_current_user))
     """Delete one of the caller's memory entries."""
     if not _MEMORY_ID_RE.match(memory_id):
         raise HTTPException(400, "Invalid memory id")
-    entry = _call(user, "GET", f"{_entries_path(user)}/{memory_id}")
+    entry = _call(user, "GET", f"{_entries_path(user)}/{memory_id}", not_found="Memory not found")
     if entry.get("actor_id") != user.email:
         raise HTTPException(404, "Memory not found")
-    _call(user, "DELETE", f"{_entries_path(user)}/{memory_id}")
+    _call(user, "DELETE", f"{_entries_path(user)}/{memory_id}", not_found="Memory not found")
     return {"status": "deleted", "memory_id": memory_id}
 
 

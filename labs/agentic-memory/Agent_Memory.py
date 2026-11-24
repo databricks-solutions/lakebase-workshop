@@ -96,20 +96,32 @@ show_app_link("agent", "Agent Memory")
 
 # COMMAND ----------
 
-def get_or_create_session_store(store_id):
-    """Open the session store, creating it on first run (create fails if it exists)."""
+def _get_or_create(stores, store_id, description):
+    """Open a store, creating it only if it doesn't exist. Other errors (auth, preview off) surface as-is."""
     try:
-        return client.session_stores.get(store_id)
-    except Exception:
-        return client.session_stores.create(store_id, description=f"Lakebase workshop sessions for {user_email}")
+        return stores.get(store_id)
+    except Exception as e:
+        if getattr(e, "error_code", None) not in ("RESOURCE_DOES_NOT_EXIST", "NOT_FOUND"):
+            raise
+    try:
+        return stores.create(store_id, description=description)
+    except Exception as e:
+        if getattr(e, "error_code", None) == "ALREADY_EXISTS":
+            raise RuntimeError(
+                f"Store {store_id!r} exists but you can't open it; it likely belongs to another user "
+                "whose email maps to the same name. Ask the facilitator to rename or delete it."
+            ) from e
+        raise
+
+
+def get_or_create_session_store(store_id):
+    """Open the session store, creating it on first run."""
+    return _get_or_create(client.session_stores, store_id, f"Lakebase workshop sessions for {user_email}")
 
 
 def get_or_create_memory_store(store_id):
     """Open the memory store, creating it on first run. Creating one provisions its backing storage."""
-    try:
-        return client.memory_stores.get(store_id)
-    except Exception:
-        return client.memory_stores.create(store_id, description=f"Lakebase workshop memory for {user_email}")
+    return _get_or_create(client.memory_stores, store_id, f"Lakebase workshop memory for {user_email}")
 
 # COMMAND ----------
 
@@ -376,11 +388,23 @@ def find_pipeline():
             return None
 
 
-pipeline = find_pipeline() or w.api_client.do("POST", f"{AGENTS_API}/memory-pipelines", body={
-    "session_store": f"session-stores/{SESSION_STORE_ID}",
-    "memory_store": f"memory-stores/{MEMORY_STORE_ID}",
-    "dreamer_policy": {"model": PIPELINE_MODEL, "instructions": PIPELINE_INSTRUCTIONS},
-})
+pipeline = find_pipeline()
+if pipeline is None:
+    pipeline = w.api_client.do("POST", f"{AGENTS_API}/memory-pipelines", body={
+        "session_store": f"session-stores/{SESSION_STORE_ID}",
+        "memory_store": f"memory-stores/{MEMORY_STORE_ID}",
+        "dreamer_policy": {"model": PIPELINE_MODEL, "instructions": PIPELINE_INSTRUCTIONS},
+    })
+else:
+    # Re-running after editing PIPELINE_MODEL / PIPELINE_INSTRUCTIONS updates the existing pipeline.
+    current = pipeline.get("dreamer_policy", {})
+    changes = {k: v for k, v in (("model", PIPELINE_MODEL), ("instructions", PIPELINE_INSTRUCTIONS))
+               if current.get(k) != v}
+    if changes:
+        pipeline = w.api_client.do("PATCH", f"{AGENTS_API}/{pipeline['name']}",
+                                   query={"update_mask": ",".join(f"dreamer_policy.{k}" for k in changes)},
+                                   body={"name": pipeline["name"], "dreamer_policy": changes})
+        print(f"  updated existing pipeline: {', '.join(changes)}")
 PIPELINE_NAME = pipeline["name"]
 policy = pipeline.get("dreamer_policy", {})
 print(f"✓ Memory pipeline ready: {PIPELINE_NAME}")
@@ -397,13 +421,26 @@ print(f"  trigger={policy.get('trigger')} model={policy.get('model')}")
 
 # COMMAND ----------
 
-wait_s = 75 - (time.time() - items[-1].create_time.timestamp())
+last_item_time = max((i.create_time.timestamp() for i in items if i.create_time), default=time.time())
+wait_s = 75 - (time.time() - last_item_time)
 if wait_s > 0:
     print(f"Waiting {wait_s:.0f}s for the session items to age past ~60s ...")
     time.sleep(wait_s)
 
-run = w.api_client.do("POST", f"{AGENTS_API}/{PIPELINE_NAME}/run", body={})
-print(f"Run started: {run['name']}")
+try:
+    run = w.api_client.do("POST", f"{AGENTS_API}/{PIPELINE_NAME}/run", body={})
+    print(f"Run started: {run['name']}")
+except Exception as e:
+    if getattr(e, "error_code", None) != "ABORTED":
+        raise
+    # A run is already in progress (e.g. this cell was re-run): wait on that one instead.
+    runs = w.api_client.do("GET", f"{AGENTS_API}/{PIPELINE_NAME}/runs").get("pipeline_runs", [])
+    active = sorted((r for r in runs if r.get("state") == "RUNNING"),
+                    key=lambda r: str(r.get("create_time") or ""), reverse=True)
+    if not active:
+        raise
+    run = active[0]
+    print(f"A run is already in progress; waiting on it: {run['name']}")
 
 deadline = time.time() + 15 * 60
 while True:
