@@ -99,7 +99,7 @@ function ShortTermPanel() {
         {sessions.length === 0 ? (
           <div className="empty-state empty-state-compact">
             <div className="empty-icon"><MessageSquare size={24} /></div>
-            <p>No sessions yet — run the Agent Memory lab or create one</p>
+            <p>No sessions yet. Run the Agent Memory lab or create one.</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -178,7 +178,7 @@ function ShortTermPanel() {
 
 function LongTermPanel() {
   const [memories, setMemories] = useState([])
-  const [path, setPath] = useState('/profile/')
+  const [path, setPath] = useState('/preferences/')
   const [content, setContent] = useState('')
   const [description, setDescription] = useState('')
   const [query, setQuery] = useState('')
@@ -347,7 +347,7 @@ export default function AgentMemory() {
         <p>
           Managed agent memory backed by Lakebase: <strong>sessions</strong> hold one conversation's
           transcript, and <strong>memory</strong> holds durable facts recalled across conversations with
-          semantic search. A <strong>memory pipeline</strong> (run from the lab notebook) distills sessions into memory.
+          natural-language search. A <strong>memory pipeline</strong> (run from the lab notebook) distills sessions into memory.
         </p>
         {stores && (
           <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>

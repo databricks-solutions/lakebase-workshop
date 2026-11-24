@@ -36,7 +36,7 @@ Before the session, confirm:
 - [ ] You can create notebooks and run them (standard user access is usually enough)
 - [ ] **Unity Catalog:** participants either have a catalog named `main` with `USE CATALOG`, `CREATE SCHEMA`, and `CREATE TABLE`, **or** at least one participant has `CREATE CATALOG` on the metastore (so the group can create a catalog and point the UC labs at it). The **Unity Catalog Access** lab (`labs/unity-catalog-access/`) also needs `CREATE CATALOG` (or a facilitator who registers `lb_fed_<user>` catalogs) plus a **Serverless SQL Warehouse** for federated queries.
 
-- [ ] *(Agentic Memory lab)* A **workspace admin** has enabled **Agent Memory Sessions** (Beta) on the workspace **Previews** page, and participants can query a chat model through AI Gateway (the lab defaults to `system.ai.gpt-5-4-mini` for memory pipelines). The workspace allows up to **50 memory stores**, and the lab creates one per participant.
+- [ ] *(Agentic Memory lab)* A **workspace admin** has enabled **Agent Memory Sessions** (Beta) on the workspace **Previews** page, and participants can query a chat model (the lab defaults to `system.ai.gpt-5-4-mini` for memory pipelines). The workspace allows up to **50 memory stores**, and the lab creates one per participant.
 
 Keep your workspace URL handy for the auth step below.
 

@@ -4,21 +4,20 @@
 # MAGIC
 # MAGIC **Path:** Agentic Memory &nbsp;|&nbsp; **Prerequisite:** `00_Setup_Lakebase_Project` + the **Agent Memory Sessions** preview (see below)
 # MAGIC
-# MAGIC **Lakebase feature:** Managed agent sessions and agent memory (Beta) — fully managed stores backed by Lakebase
+# MAGIC **Lakebase feature:** Managed agent sessions and agent memory (Beta), backed by Lakebase
 # MAGIC
-# MAGIC An agent needs two kinds of state: the state of the **interaction it's handling now**, and
-# MAGIC **durable knowledge** it carries between conversations. Databricks provides a managed store
-# MAGIC for each — backed by Lakebase, and usable from agents built on any framework. There is no
-# MAGIC schema to design and no SQL to write.
+# MAGIC An agent keeps two kinds of state: the **interaction it's handling now**, and **durable
+# MAGIC facts** it carries between conversations. Databricks provides a managed store for each. Both
+# MAGIC are backed by Lakebase and work with agents built on any framework.
 # MAGIC
 # MAGIC In this notebook you will:
-# MAGIC 1. **Agent sessions** — store and replay one conversation (short-term state)
-# MAGIC 2. **Agent memory** — save durable facts and recall them with natural-language search (long-term state)
-# MAGIC 3. **Memory pipelines** — distill sessions into memory automatically, and watch the pipeline merge entries
-# MAGIC 4. **Governance** — store permissions, `actor_id` scoping, and granting the Lab Console app access
-# MAGIC 5. **Reference** — the self-managed (DIY) Lakebase memory pattern this lab used to teach
+# MAGIC 1. **Agent sessions:** store and replay one conversation (short-term state).
+# MAGIC 2. **Agent memory:** save facts and recall them with natural-language search (long-term state).
+# MAGIC 3. **Memory pipelines:** distill the conversation into memory and see how a run changes entries.
+# MAGIC 4. **Governance:** store permissions, `actor_id` scoping, and access for the Lab Console app.
+# MAGIC 5. **Reference:** the self-managed Lakebase memory pattern that earlier versions of this lab taught.
 # MAGIC
-# MAGIC **Docs:** [Agent memory and sessions](https://docs.databricks.com/aws/en/generative-ai/agent-framework/stateful-agents) ·
+# MAGIC **Docs:** [Agent memory and sessions](https://docs.databricks.com/aws/en/agents/custom-agents/stateful-agents) ·
 # MAGIC [Agent sessions](https://docs.databricks.com/aws/en/agents/agent-memory/managed-sessions) ·
 # MAGIC [Agent memory](https://docs.databricks.com/aws/en/agents/agent-memory/managed-memory) ·
 # MAGIC [Memory pipelines](https://docs.databricks.com/aws/en/agents/agent-memory/memory-pipelines) ·
@@ -33,8 +32,8 @@
 # MAGIC |---|---|
 # MAGIC | **Agent Memory Sessions preview** | A **workspace admin** must enable **Agent Memory Sessions** on the workspace **Previews** page. Without it, every call below fails. |
 # MAGIC | **`databricks-agentbricks` ≥ 0.8.0** | The AgentKit SDK (`databricks_agentkit`). Installed by the next cell. Python 3.10+. |
-# MAGIC | **Model access (Part 3)** | Permission to query the memory pipeline's distillation model (`PIPELINE_MODEL` below) through AI Gateway. |
-# MAGIC | **Store quota** | A workspace can hold up to **50 memory stores**. This lab creates one memory store and one session store per participant — run the cleanup cell when you're done. |
+# MAGIC | **Model access (Part 3)** | Permission to query the pipeline's distillation model (`PIPELINE_MODEL` below). Without it, pipeline runs fail. |
+# MAGIC | **Store quota** | A workspace can hold up to **50 memory stores**. This lab creates one memory store and one session store per participant, so run the cleanup cell when you're done. |
 # MAGIC | **`00_Setup_Lakebase_Project`** | Provides the shared `_setup` helpers (your identity, store names, and the Lab Console link). |
 # MAGIC
 # MAGIC Billing during the preview: you pay for the Lakebase instance that backs the stores; sessions and memory carry no additional charge.
@@ -44,14 +43,12 @@
 # MAGIC %md
 # MAGIC ## How it fits together
 # MAGIC
-# MAGIC - **Agent sessions** store the state of **one interaction** — usually the conversation
-# MAGIC   history. The agent reads the session at the start of a turn and appends to it as the
-# MAGIC   interaction runs.
-# MAGIC - **Agent memory** stores **durable facts, preferences, and decisions** the agent recalls in
-# MAGIC   later, separate conversations, using semantic search.
+# MAGIC - **Agent sessions** store the state of **one interaction**, usually the conversation
+# MAGIC   history. The agent reads the session at the start of a turn and appends to it as it goes.
+# MAGIC - **Agent memory** stores **durable facts, preferences, and decisions** that the agent recalls
+# MAGIC   in later conversations.
 # MAGIC - A **memory pipeline** reads conversations from a session store, distills durable facts,
-# MAGIC   and writes them to a memory store — on demand or on a schedule — so your agent doesn't need
-# MAGIC   memory-writing tools.
+# MAGIC   and writes them to a memory store, so your agent doesn't need memory-writing tools.
 # MAGIC
 # MAGIC ![Agent memory and sessions overview](../../docs/images/agent_memory_overview.png)
 # MAGIC
@@ -62,10 +59,9 @@
 # MAGIC | **Read by** | Replaying items in order | `list` (browse) and `search` (natural-language recall) |
 # MAGIC | **Written by** | `append_items` each turn | Your agent (`put`) or a **memory pipeline** |
 # MAGIC
-# MAGIC **When to use each:** use **both** for most applications (continuity within *and* across
-# MAGIC conversations); sessions alone when you only need in-interaction state; memory alone when
-# MAGIC your framework already manages session state. The two stores are **independent** — deleting
-# MAGIC a session, or a whole session store, never deletes memory already saved.
+# MAGIC Use both for most agents. Use sessions alone when you only need in-interaction state, and
+# MAGIC memory alone when your framework already manages session state. The stores are independent:
+# MAGIC deleting a session, or a whole session store, doesn't delete saved memory.
 
 # COMMAND ----------
 
@@ -130,9 +126,10 @@ def get_or_create_memory_store(store_id):
 # MAGIC ## Part 1: Agent Sessions (short-term)
 # MAGIC
 # MAGIC A **session store** is a workspace-scoped container for sessions. A **session** is one
-# MAGIC interaction — such as a conversation thread — owned by an `actor_id`. A **session item** is
-# MAGIC an immutable, JSON-compatible entry; the service assigns its `item_id` and `create_time` and
-# MAGIC doesn't validate its contents, so any framework can persist its own state shape.
+# MAGIC interaction, such as a conversation thread, owned by an `actor_id`. A **session item** is one
+# MAGIC immutable, JSON-compatible entry in the session's history. The service assigns each item's
+# MAGIC `item_id` and `create_time` and doesn't validate the contents, so any framework can store its
+# MAGIC own state shape.
 # MAGIC
 # MAGIC ![Agent sessions resource hierarchy](../../docs/images/agent_sessions_hierarchy.png)
 
@@ -149,7 +146,7 @@ print(f"✓ Session store ready: {session_store.name}")
 THREAD_ID = f"thread-{uuid.uuid4().hex[:12]}"
 session = session_store.add(
     actor_id=ACTOR_ID,
-    session_id=THREAD_ID,  # optional — the service generates one if omitted
+    session_id=THREAD_ID,  # optional; the service generates one if omitted
     metadata={"agent": "workshop-assistant", "purpose": "lakebase-workshop-demo"},
 )
 print(f"✓ Thread created: {session.session_id} (actor {session.actor_id})")
@@ -159,9 +156,9 @@ print(f"✓ Thread created: {session.session_id} (actor {session.actor_id})")
 # MAGIC %md
 # MAGIC ### 1.2 Append a multi-turn conversation
 # MAGIC
-# MAGIC Each turn is appended as a session item. The recommended message shape is
-# MAGIC `{"type": "message", "role": "user" | "assistant", "content": "<text>"}`. The user
-# MAGIC mentions a few durable facts about themselves — Part 3's memory pipeline distills them.
+# MAGIC Each turn is one session item. This lab uses the message shape from the docs' examples:
+# MAGIC `{"type": "message", "role": "user" | "assistant", "content": "<text>"}`. The user mentions
+# MAGIC a few facts about themselves, which the memory pipeline picks up in Part 3.
 
 # COMMAND ----------
 
@@ -189,8 +186,8 @@ print(f"✓ Stored {len(items)} messages in thread {THREAD_ID}")
 # MAGIC %md
 # MAGIC ### 1.3 Replay the conversation
 # MAGIC
-# MAGIC This is how an agent rebuilds context for the next turn. `list_items` defaults to
-# MAGIC newest-first and pages automatically; pass `order_by="create_time asc"` to replay in order.
+# MAGIC An agent replays the session to rebuild context for the next turn. `list_items` returns
+# MAGIC newest first and pages automatically. Pass `order_by="create_time asc"` to replay in order.
 
 # COMMAND ----------
 
@@ -214,9 +211,9 @@ for msg in history:
 # MAGIC | Sub-agents | `session_store.add(..., parent_session_id=...)` | Link a sub-agent conversation to its parent |
 # MAGIC | Delete | `session.delete()` | Also deletes child sessions and their items |
 # MAGIC
-# MAGIC **Framework integrations** (in `databricks-agentbricks`): OpenAI Agents SDK
-# MAGIC `databricks_agentkit.openai.session_store(...)` and LangGraph
-# MAGIC `databricks_agentkit.langgraph.checkpointer(...)` persist sessions for you.
+# MAGIC For the OpenAI Agents SDK and LangGraph, `databricks-agentbricks` provides
+# MAGIC `databricks_agentkit.openai.session_store(...)` and
+# MAGIC `databricks_agentkit.langgraph.checkpointer(...)`, which persist sessions for you.
 
 # COMMAND ----------
 
@@ -233,13 +230,13 @@ for s in session_store.list():
 # MAGIC A **memory store** is a workspace-scoped container for an agent's memories. A **memory entry**
 # MAGIC is free-form text (`content`) with a short `description` used for retrieval, identified by:
 # MAGIC
-# MAGIC - **`actor_id`** (required) — whose memory it is: an end user, or another agent
-# MAGIC - **`session_id`** (optional) — leave unset for memory that applies across sessions
-# MAGIC - **`path`** (required) — a filesystem-like key, such as `/preferences/response-style.md`
+# MAGIC - **`actor_id`** (required): whose memory it is.
+# MAGIC - **`session_id`** (optional): leave unset for memory that applies across sessions.
+# MAGIC - **`path`** (required): a filesystem-like key, such as `/preferences/response-style.md`.
 # MAGIC
-# MAGIC The same path under different sessions — or under a session and no session — holds separate
-# MAGIC entries. Entries are written directly by your app or agent, or distilled from sessions by a
-# MAGIC memory pipeline (Part 3).
+# MAGIC The same path under two sessions, or under a session and under none, holds two separate
+# MAGIC entries. Your agent writes entries directly, or a memory pipeline distills them from
+# MAGIC sessions (Part 3).
 # MAGIC
 # MAGIC ![Agent memory resource hierarchy](../../docs/images/agent_memory_hierarchy.png)
 
@@ -248,9 +245,9 @@ for s in session_store.list():
 # MAGIC %md
 # MAGIC ### 2.1 Save durable facts with `put()`
 # MAGIC
-# MAGIC `put()` creates the entry at `(actor_id, session_id, path)` or replaces its content — so
-# MAGIC re-running this cell updates rather than duplicates. (`add()` instead fails with
-# MAGIC `ALREADY_EXISTS`; `put(..., append=True)` appends new lines.)
+# MAGIC `put()` creates the entry at `(actor_id, session_id, path)` or replaces its content, so
+# MAGIC re-running this cell doesn't create duplicates. `add()` fails with `ALREADY_EXISTS` if the
+# MAGIC entry exists, and `put(..., append=True)` adds new lines instead of replacing.
 
 # COMMAND ----------
 
@@ -258,11 +255,11 @@ memory_store = get_or_create_memory_store(MEMORY_STORE_ID)
 print(f"✓ Memory store ready: {memory_store.name}")
 
 MEMORIES = [
-    ("/profile/preferred-language.md", "Prefers Python for data engineering work.", "Preferred programming language"),
-    ("/profile/data-platform.md", "Uses Databricks; actively learning Lakebase and Unity Catalog.", "Data platform"),
-    ("/profile/interests.md", "Interested in branching workflows, Reverse ETL, and schema migrations.", "Technical interests"),
-    ("/profile/experience-level.md", "Intermediate: familiar with Delta Lake, new to Lakebase.", "Experience level"),
-    ("/profile/team.md", "Works on a data engineering team that builds pipelines and synced tables.", "Team"),
+    ("/preferences/preferred-language.md", "Prefers Python for data engineering work.", "Preferred programming language"),
+    ("/preferences/data-platform.md", "Uses Databricks; actively learning Lakebase and Unity Catalog.", "Data platform"),
+    ("/preferences/interests.md", "Interested in branching workflows, Reverse ETL, and schema migrations.", "Technical interests"),
+    ("/preferences/experience-level.md", "Intermediate: familiar with Delta Lake, new to Lakebase.", "Experience level"),
+    ("/preferences/team.md", "Works on a data engineering team that builds pipelines and synced tables.", "Team"),
 ]
 
 for path, content, description in MEMORIES:
@@ -274,7 +271,7 @@ print(f"✓ Stored {len(MEMORIES)} long-term memories for {ACTOR_ID}")
 # MAGIC %md
 # MAGIC ### 2.2 Browse with `list()`
 # MAGIC
-# MAGIC `list()` is scoped to one actor, and can filter by `path_prefix`, an exact `path`, or
+# MAGIC `list()` returns one actor's entries. It can filter by `path_prefix`, an exact `path`, or
 # MAGIC `session_id`.
 
 # COMMAND ----------
@@ -293,9 +290,9 @@ before_pipeline = show_memories("Memory store")
 # MAGIC %md
 # MAGIC ### 2.3 Recall with `search()` and build a system prompt
 # MAGIC
-# MAGIC `search()` runs a natural-language query for one actor and returns entries ranked by
-# MAGIC relevance (up to 100, no pagination). The typical pattern is to recall before each run and
-# MAGIC inject the facts into the system prompt.
+# MAGIC `search()` takes a natural-language query and returns one actor's entries ranked by
+# MAGIC relevance, combining keyword (BM25) and semantic matching. It returns up to 100 entries and
+# MAGIC doesn't paginate. The cell below recalls facts for a question and adds them to a system prompt.
 
 # COMMAND ----------
 
@@ -318,10 +315,10 @@ print(system_prompt)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC **Framework integrations:** `memory_tools(user_id, store=MEMORY_STORE)` from
-# MAGIC `databricks_agentkit.openai` or `databricks_agentkit.langgraph` gives an agent four tools
-# MAGIC bound to one actor — `recall`, `remember`, `forget`, and `list_memories` — so it can manage
-# MAGIC its own memory. Part 3 shows the alternative: let a pipeline write memory for you.
+# MAGIC To let an agent manage its own memory, `memory_tools(ACTOR_ID, store=MEMORY_STORE_ID)` from
+# MAGIC `databricks_agentkit.openai` or `databricks_agentkit.langgraph` returns four tools bound to
+# MAGIC one actor: `recall`, `remember`, `forget`, and `list_memories`. Part 3 shows the other
+# MAGIC option, where a pipeline writes memory for you.
 
 # COMMAND ----------
 
@@ -330,45 +327,47 @@ print(system_prompt)
 # MAGIC ## Part 3: Memory Pipelines
 # MAGIC
 # MAGIC A **memory pipeline** builds long-term memory from past conversations. It reads a
-# MAGIC **session store**, distills facts, preferences, and procedures, and writes them to a
-# MAGIC **memory store** under the same `actor_id` as the sessions. Because it runs after the fact,
-# MAGIC it sees all of an actor's conversations *and* their existing memory.
+# MAGIC **session store** and writes to a **memory store** under the same `actor_id` as the sessions.
 # MAGIC
-# MAGIC Each run **distills** new facts, **merges** them into topic-based entries, then
-# MAGIC **consolidates** — merging overlapping entries and splitting oversized ones. This can change
-# MAGIC *any* entry under a processed actor, **including the entries you wrote with `put()` in
-# MAGIC Part 2**. That's what you'll observe below.
+# MAGIC For each actor, a run reads the sessions added since that actor's last successful run, uses
+# MAGIC an LLM to extract durable facts, and merges them into topic-based entries. It then reorganizes
+# MAGIC the actor's memory, merging entries that overlap and splitting entries that grow too large. A
+# MAGIC run can rewrite, merge, split, or delete any of the actor's entries, **including the ones you
+# MAGIC wrote with `put()` in Part 2**.
 # MAGIC
 # MAGIC | Trigger | Behavior |
 # MAGIC |---|---|
-# MAGIC | **Manual** (default) | You start each run — used in this lab |
+# MAGIC | **Manual** (default) | You start each run. This lab uses it. |
 # MAGIC | **Scheduled** | About every 24 hours; pause and resume are supported |
-# MAGIC | **Always-on** | Runs as sessions update — after 10+ new items, or 1+ new item and 30 minutes of inactivity |
+# MAGIC | **Always-on** | Runs for an actor when a session has 10+ new items, or 1+ new item and 30 minutes of inactivity |
 # MAGIC
-# MAGIC Rules to know: one pipeline per session-store/memory-store pair; one run at a time (a run
-# MAGIC started during another fails with `ABORTED`); only actors with sessions are processed; items
-# MAGIC must be about 60 seconds old before a run picks them up; runs use the identity that
-# MAGIC **created** the pipeline. Deleting a pipeline keeps the memories it already wrote.
+# MAGIC Constraints:
+# MAGIC - One pipeline per session store and memory store pair.
+# MAGIC - One run at a time. Starting a run while another is in progress fails with `ABORTED`.
+# MAGIC - A run processes only actors that have sessions, and only items about 60 seconds old or older.
+# MAGIC - Runs use the identity that **created** the pipeline.
+# MAGIC - Deleting a pipeline keeps the entries it already wrote.
 # MAGIC
-# MAGIC > **Note:** memory pipelines are unrelated to Lakeflow pipelines — they're configured
-# MAGIC > through the Agent Bricks CLI or the REST API (`/api/2.0/agents/memory-pipelines`), which
-# MAGIC > this notebook calls through the workspace client.
+# MAGIC Memory pipelines aren't Lakeflow pipelines. You manage them with the Agent Bricks CLI or the
+# MAGIC REST API (`/api/2.0/agents/memory-pipelines`); this notebook calls the REST API.
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### 3.1 Create the pipeline
 # MAGIC
-# MAGIC `PIPELINE_MODEL` is the distillation model, called through AI Gateway. It must support
-# MAGIC **structured output** — some newer Anthropic models reject it, and the run fails. If your
-# MAGIC workspace doesn't serve the default below, pick another chat model from **Serving**.
+# MAGIC `PIPELINE_MODEL` is the distillation model, which the pipeline calls through Unity Gateway.
+# MAGIC You can use any model you have permission to query. In testing for this workshop,
+# MAGIC `system.ai.gpt-5-4-mini` worked, and a run with `system.ai.claude-sonnet-5-5` failed with
+# MAGIC "Structured output is not supported". If your workspace doesn't serve the default, pick
+# MAGIC another chat model from **Serving**. Re-running this cell updates an existing pipeline.
 
 # COMMAND ----------
 
 PIPELINE_MODEL = "system.ai.gpt-5-4-mini"
 PIPELINE_INSTRUCTIONS = (
     "Keep durable user preferences, profile facts, and working style. "
-    "Organize entries by topic under /profile/. Ignore one-off troubleshooting steps."
+    "Organize entries by topic under /preferences/. Ignore one-off troubleshooting steps."
 )
 AGENTS_API = "/api/2.0/agents"
 
@@ -415,9 +414,9 @@ print(f"  trigger={policy.get('trigger')} model={policy.get('model')}")
 # MAGIC %md
 # MAGIC ### 3.2 Run it and wait
 # MAGIC
-# MAGIC A run takes a few minutes. The cell waits until the conversation items are old enough to be
-# MAGIC picked up, starts a run, then polls its `state` (`RUNNING` → `SUCCEEDED`, `FAILED`, or
-# MAGIC `CANCELLED`).
+# MAGIC In testing, a run took about two minutes. The cell waits until the conversation items are
+# MAGIC old enough to be picked up, starts a run, and polls its `state` until it leaves `RUNNING` for
+# MAGIC `SUCCEEDED`, `FAILED`, or `CANCELLED`. If a run is already in progress, the cell waits on it.
 
 # COMMAND ----------
 
@@ -458,17 +457,17 @@ if run.get("state") == "SUCCEEDED":
 else:
     # The run's own error is often generic; the failing task's message lives on the backing job run.
     print(f"✗ Memory pipeline run did not succeed: {json.dumps(run)[:800]}")
-    print("  Check PIPELINE_MODEL (it must support structured output) and your model permissions.")
+    print("  Check PIPELINE_MODEL and your permission to query it. The failing task's error is on the job run.")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### 3.3 See what the pipeline distilled and merged
 # MAGIC
-# MAGIC Compare the store with the snapshot from Part 2. Expect **new** facts from the conversation
-# MAGIC (response style, time zone) and **merged** entries: overlapping facts — such as language and
-# MAGIC team — may be folded into one topic entry, with the redundant entries **deleted**. The exact
-# MAGIC result depends on the model, so it can differ between runs.
+# MAGIC Compare the store with the Part 2 snapshot. Look for **new** facts from the conversation
+# MAGIC (response style, time zone) and **merged** entries: overlapping facts, such as language and
+# MAGIC team, may be folded into one entry and the others **deleted**. The result depends on the
+# MAGIC model and can differ between runs.
 
 # COMMAND ----------
 
@@ -490,10 +489,9 @@ for r in memory_store.search(actor_id=ACTOR_ID, query="How should answers be for
 # MAGIC %md
 # MAGIC ### 3.4 Switch the trigger (optional)
 # MAGIC
-# MAGIC In production you'd rarely run pipelines by hand. Update the trigger with a `PATCH` on
-# MAGIC `dreamer_policy.trigger` — `SCHEDULED` runs about every 24 hours; `MANUAL_ONLY` pauses
-# MAGIC scheduled runs. With the Agent Bricks CLI: `agentbricks memory pipeline resume <id>` /
-# MAGIC `pause <id>`.
+# MAGIC To run the pipeline automatically, `PATCH` `dreamer_policy.trigger` to `SCHEDULED` (about
+# MAGIC every 24 hours) or `ALWAYS_ON`. `MANUAL_ONLY` stops automatic runs. The Agent Bricks CLI
+# MAGIC equivalents are `agentbricks memory pipeline pause <id>` and `resume <id>`.
 
 # COMMAND ----------
 
@@ -508,9 +506,9 @@ for r in memory_store.search(actor_id=ACTOR_ID, query="How should answers be for
 # MAGIC ---
 # MAGIC ## Part 4: Governance and Access
 # MAGIC
-# MAGIC **The store is the security boundary.** `actor_id` separates memories, but it is *not* access
-# MAGIC control: any principal with access to a store can read every actor's entries. Use a separate
-# MAGIC store for strict isolation (per tenant or per user).
+# MAGIC **The store is the security boundary.** `actor_id` separates memories but isn't access
+# MAGIC control: a principal with access to a store can read every actor's entries. For strict
+# MAGIC isolation, use a separate store per tenant or per user.
 # MAGIC
 # MAGIC | Scope | `actor_id` value | Example |
 # MAGIC |---|---|---|
@@ -524,18 +522,17 @@ for r in memory_store.search(actor_id=ACTOR_ID, query="How should answers be for
 # MAGIC | **WRITE** | Read and write store data (includes READ) |
 # MAGIC | Creator | Implicit WRITE; can grant, list, and revoke; can't be revoked |
 # MAGIC
-# MAGIC Only the store creator or a workspace admin can manage permissions (admins don't get data
-# MAGIC access automatically). Grants go to users or service principals — not groups. Any workspace
-# MAGIC user can list and get stores (IDs and descriptions).
+# MAGIC Only the store creator or a workspace admin can manage permissions. Being an admin doesn't
+# MAGIC grant data access. Grants go to users or service principals, not groups. Any workspace user
+# MAGIC can list and get stores, including their IDs and descriptions.
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### 4.1 Check your access, and grant the Lab Console app
 # MAGIC
-# MAGIC The Lab Console app runs as its own **service principal**, so it can only open your stores
-# MAGIC after you grant it access. `grant_permission` defaults to `WRITE` for a service principal and is
-# MAGIC idempotent.
+# MAGIC The Lab Console app runs as its own **service principal**, so it can open your stores only
+# MAGIC after you grant it access. Granting is idempotent, so re-running the cell is safe.
 
 # COMMAND ----------
 
@@ -547,7 +544,7 @@ try:
     app_sp = getattr(app_info, "effective_service_principal_client_id", None) or app_info.service_principal_client_id
 except Exception as e:
     app_sp = None
-    print(f"Lab Console app '{APP_NAME}' not found ({type(e).__name__}) — skipping the app grant.")
+    print(f"Lab Console app '{APP_NAME}' not found ({type(e).__name__}); skipping the app grant.")
 
 if app_sp:
     session_store.grant_permission(app_sp, permission="WRITE")
@@ -560,12 +557,11 @@ if app_sp:
 
 # MAGIC %md
 # MAGIC ---
-# MAGIC ## Part 5: Reference — Self-Managed (DIY) Memory on Lakebase
+# MAGIC ## Part 5: Reference: Self-Managed Memory on Lakebase
 # MAGIC
-# MAGIC Before managed stores existed, this lab built agent memory directly on Lakebase tables —
-# MAGIC and `00_Setup_Lakebase_Project` still seeds them in your schema: `agent_sessions` +
-# MAGIC `agent_messages` (short-term) and `agent_memory_store` (long-term key-value). The docs now
-# MAGIC label this pattern **legacy** and recommend managed sessions and memory for new agents.
+# MAGIC Earlier versions of this lab built agent memory directly on Lakebase tables.
+# MAGIC `00_Setup_Lakebase_Project` still creates them in your schema: `agent_sessions` and
+# MAGIC `agent_messages` (short-term), and `agent_memory_store` (long-term key-value).
 # MAGIC
 # MAGIC ![Self-managed agent memory on Lakebase](../../docs/images/agent_memory_architecture.png)
 # MAGIC
@@ -588,23 +584,20 @@ if app_sp:
 # MAGIC
 # MAGIC | | Managed sessions + memory | Self-managed on Lakebase |
 # MAGIC |---|---|---|
-# MAGIC | **Schema & SQL** | None — SDK / REST API | You design tables and write queries |
-# MAGIC | **Recall** | Built-in semantic + keyword search | Whatever you build (e.g. pgvector, BM25) |
+# MAGIC | **Schema & SQL** | None; SDK or REST API | You design tables and write queries |
+# MAGIC | **Recall** | Built-in keyword (BM25) + semantic search | What you build (for example, pgvector or BM25) |
 # MAGIC | **Distillation** | Memory pipelines | Your own extraction code |
 # MAGIC | **Access control** | Per-store READ / WRITE grants | Postgres roles and grants |
-# MAGIC | **Choose when** | Default for new agents | You need a custom schema, joins with operational data, or full SQL control |
-# MAGIC
-# MAGIC **Docs:** [Self-managed agent memory (legacy)](https://docs.databricks.com/aws/en/generative-ai/agent-framework/stateful-agents)
+# MAGIC | **Choose when** | You want storage, search, and distillation managed for you | You need a custom schema, joins with operational data, or full SQL control |
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Clean Up (Optional)
 # MAGIC
-# MAGIC The workspace limit is 50 memory stores, so delete yours when you're done. The Lab Console's
-# MAGIC Agent Memory page stops working for you once the stores are gone — re-run this notebook to
-# MAGIC recreate them. Deleting the pipeline keeps the memories it wrote; deleting a store deletes its
-# MAGIC data.
+# MAGIC A workspace holds up to 50 memory stores, so delete yours when you're done. Deleting a store
+# MAGIC deletes its data; deleting the pipeline doesn't. The Lab Console's Agent Memory page stops
+# MAGIC working for you until you re-run this notebook.
 
 # COMMAND ----------
 
