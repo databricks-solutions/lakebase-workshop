@@ -108,11 +108,21 @@ def drop_branch(ctx: h.Ctx, name: str, action: Action, dry_run: bool) -> None:
 
 def drop_synced_table(ctx: h.Ctx, full_name: str, action: Action, dry_run: bool) -> None:
     resource = f"synced_tables/{full_name}"
+    # get_synced_table can raise NotFound either because the table is gone, or
+    # because it still exists but points at a deleted Lakebase project UID. In the
+    # latter case delete still succeeds and is required before the lab can recreate it.
+    exists = False
     try:
         ctx.w.postgres.get_synced_table(name=resource)
-    except Exception:
-        action.status = "absent"
-        return
+        exists = True
+    except Exception as e:
+        msg = str(e).lower()
+        if "project with id" in msg and "not found" in msg:
+            exists = True
+            action.detail = f"orphan pointing at missing project ({type(e).__name__})"
+        else:
+            action.status = "absent"
+            return
     if dry_run:
         action.status = "would-delete"
         return
@@ -132,11 +142,18 @@ def drop_online_table(ctx: h.Ctx, full_name: str, action: Action, dry_run: bool)
     API. Deletion still prefers the Feature Engineering call, which is the
     teardown the lab teaches.
     """
+    exists = False
     try:
         ctx.w.postgres.get_synced_table(name=f"synced_tables/{full_name}")
-    except Exception:
-        action.status = "absent"
-        return
+        exists = True
+    except Exception as e:
+        msg = str(e).lower()
+        if "project with id" in msg and "not found" in msg:
+            exists = True
+            action.detail = f"orphan pointing at missing project ({type(e).__name__})"
+        else:
+            action.status = "absent"
+            return
     if dry_run:
         action.status = "would-delete"
         return
