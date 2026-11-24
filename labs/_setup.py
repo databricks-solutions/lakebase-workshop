@@ -23,6 +23,13 @@ def _sanitize(email):
 PROJECT_ID = f"lakebase-lab-{_sanitize(user_email)}"
 PG_SCHEMA  = f"lakebase_lab_{_sanitize(user_email).replace('-', '_')}"
 
+# Managed agent memory stores (labs/agentic-memory). Store IDs: 3-56 chars,
+# lowercase letters/digits/hyphens, starting with a letter. The Lab Console app
+# derives the same IDs (backend/user_context.py) — keep the two in sync.
+_STORE_SLUG = _sanitize(user_email)[:40].rstrip("-")
+SESSION_STORE_ID = f"lab-{_STORE_SLUG}-sessions"
+MEMORY_STORE_ID  = f"lab-{_STORE_SLUG}-memory"
+
 _REQUIRED_TABLES = {"products", "events", "agent_sessions", "agent_messages", "agent_memory_store", "audit_log"}
 
 # An endpoint is usable once it leaves INIT. IDLE means it scaled to zero, which is

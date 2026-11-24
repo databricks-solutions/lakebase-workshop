@@ -284,6 +284,6 @@ if SEARCH_READY:
 # MAGIC
 # MAGIC | Path | Folder | What You'll Learn |
 # MAGIC |------|--------|-------------------|
-# MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Short/long-term AI agent memory — pair it with Section 7 above |
+# MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Managed agent sessions + memory — pair it with Section 7 above |
 # MAGIC | **Data API** | `labs/data-api/` | Expose your searchable tables over REST |
 # MAGIC | **App Deployment** | `labs/app-deployment/` | Put search behind a full-stack app (capstone) |

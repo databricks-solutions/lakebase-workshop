@@ -47,6 +47,11 @@ def sanitize(email: str) -> str:
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9-]", "-", name.lower())).strip("-")
 
 
+def agent_store_id(email: str, kind: str) -> str:
+    """Managed agent store id; matches SESSION_STORE_ID / MEMORY_STORE_ID in labs/_setup.py."""
+    return f"lab-{sanitize(email)[:40].rstrip('-')}-{kind}"
+
+
 def project_id_for(email: str) -> str:
     return f"lakebase-lab-{sanitize(email)}"
 
@@ -97,6 +102,8 @@ class Ctx:
             "fed_catalog": f"lb_fed_{sanitize(self.user_email).replace('-', '_')}",
             "project": self.project_id,
             "user": self.user_email,
+            "session_store": agent_store_id(self.user_email, "sessions"),
+            "memory_store": agent_store_id(self.user_email, "memory"),
         }
 
     def project_name(self) -> str:
@@ -589,6 +596,17 @@ def run_preflight(ctx: Ctx) -> Preflight:
             "and Reverse ETL cannot grant it UC access"
         )
 
+    # --- Agent Memory Sessions preview ------------------------------------ #
+    try:
+        ctx.w.api_client.do("GET", "/api/2.0/agents/memory-stores", query={"page_size": 1})
+        pf.gates[manifest.GATE_AGENT_MEMORY] = True
+    except Exception as e:
+        pf.gates[manifest.GATE_AGENT_MEMORY] = False
+        pf.warnings.append(
+            f"managed agent memory API unavailable ({type(e).__name__}); enable the Agent Memory "
+            "Sessions preview to run the agent memory lab"
+        )
+
     # --- Unity Catalog ----------------------------------------------------- #
     try:
         ctx.w.catalogs.get(name=ctx.uc_catalog)
@@ -703,3 +721,30 @@ def require_sdk() -> None:
         say(f"{C.R}Missing dependency:{C.X} {e}")
         say('Install with: pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6"')
         sys.exit(2)
+
+
+# --------------------------------------------------------------------------- #
+# Managed agent memory (labs/agentic-memory)
+# --------------------------------------------------------------------------- #
+AGENTS_API = "/api/2.0/agents"
+
+
+def agents_list_all(ctx: "Ctx", path: str, key: str, query: dict | None = None) -> list[dict]:
+    out, token = [], None
+    while True:
+        q = dict(query or {}, page_size=100)
+        if token:
+            q["page_token"] = token
+        resp = ctx.w.api_client.do("GET", f"{AGENTS_API}{path}", query=q) or {}
+        out.extend(resp.get(key, []))
+        token = resp.get("next_page_token")
+        if not token:
+            return out
+
+
+def find_agent_memory_pipeline(ctx: "Ctx", session_store: str, memory_store: str) -> dict | None:
+    for p in agents_list_all(ctx, "/memory-pipelines", "memory_pipelines"):
+        if p.get("session_store") == f"session-stores/{session_store}" and \
+           p.get("memory_store") == f"memory-stores/{memory_store}":
+            return p
+    return None

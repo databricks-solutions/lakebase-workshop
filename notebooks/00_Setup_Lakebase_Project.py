@@ -446,7 +446,7 @@ if _host:
 # MAGIC | 6 | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
 # MAGIC | 7 | **Authentication** | `labs/authentication/` | OAuth tokens, two-layer permissions, role grants |
 # MAGIC | 8 | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
-# MAGIC | 9 | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
+# MAGIC | 9 | **Agentic Memory** | `labs/agentic-memory/` | Managed agent sessions, memory, and memory pipelines |
 # MAGIC | 10 | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase |
 # MAGIC | 11 | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
 # MAGIC | 12 | **Data API** | `labs/data-api/` | PostgREST REST access, OAuth bearer tokens, and row-level security |

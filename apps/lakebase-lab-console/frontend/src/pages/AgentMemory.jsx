@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api'
-import { Bot, Plus, Trash2, Send, MessageSquare, X, Brain, Key } from '../icons'
+import { Bot, Plus, Send, MessageSquare, X, Brain, Key, Search } from '../icons'
 import LabBanner from '../LabBanner'
 
 const TABS = [
-  { id: 'short', label: 'Short-term Memory', Icon: MessageSquare },
-  { id: 'long', label: 'Long-term Memory', Icon: Brain },
+  { id: 'short', label: 'Sessions (short-term)', Icon: MessageSquare },
+  { id: 'long', label: 'Memory (long-term)', Icon: Brain },
 ]
 
 function ShortTermPanel() {
@@ -22,7 +22,7 @@ function ShortTermPanel() {
   const loadSessions = () => {
     api.listSessions()
       .then(setSessions)
-      .catch((e) => setError(`Failed to load threads: ${e.message}`))
+      .catch((e) => setError(`Failed to load sessions: ${e.message}`))
   }
 
   useEffect(loadSessions, [])
@@ -46,7 +46,7 @@ function ShortTermPanel() {
       loadSessions()
       setActiveSession(s.session_id)
     } catch (e) {
-      setError(`Failed to create thread: ${e.message}`)
+      setError(`Failed to create session: ${e.message}`)
     }
     setLoading(false)
   }
@@ -58,7 +58,7 @@ function ShortTermPanel() {
       if (activeSession === id) { setActiveSession(null); setMessages([]) }
       loadSessions()
     } catch (e) {
-      setError(`Failed to delete thread: ${e.message}`)
+      setError(`Failed to delete session: ${e.message}`)
     }
   }
 
@@ -86,20 +86,20 @@ function ShortTermPanel() {
     <div className="grid-2col" style={{ gridTemplateColumns: '300px 1fr' }}>
       <div className="card" style={{ alignSelf: 'start' }}>
         <div className="card-header">
-          <h3><Bot size={16} /> Threads</h3>
+          <h3><Bot size={16} /> Sessions</h3>
         </div>
         <div className="form-group">
           <label>Agent Name</label>
           <input value={agentName} onChange={(e) => setAgentName(e.target.value)} placeholder="lab-agent" />
         </div>
         <button className="btn btn-primary btn-sm" onClick={createSession} disabled={loading} style={{ marginBottom: 16, width: '100%' }}>
-          <Plus size={14} /> New Thread
+          <Plus size={14} /> New Session
         </button>
 
         {sessions.length === 0 ? (
           <div className="empty-state empty-state-compact">
             <div className="empty-icon"><MessageSquare size={24} /></div>
-            <p>No threads yet</p>
+            <p>No sessions yet — run the Agent Memory lab or create one</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -118,7 +118,7 @@ function ShortTermPanel() {
                 <div>
                   <div className="td-mono-bold" style={{ fontSize: 12 }}>{s.session_id}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {s.agent_name} &middot; {s.message_count} msgs
+                    {s.agent_name || 'agent'} &middot; {(s.last_activity || s.created_at || '').replace('T', ' ').slice(0, 16)}
                   </div>
                 </div>
                 <button className="btn btn-danger btn-icon btn-xs"
@@ -135,13 +135,13 @@ function ShortTermPanel() {
         {!activeSession ? (
           <div className="empty-state">
             <div className="empty-icon"><MessageSquare size={36} /></div>
-            <p>Select or create a thread to view conversation history</p>
+            <p>Select or create a session to replay its items</p>
           </div>
         ) : (
           <>
             <div className="card-header">
-              <h3><MessageSquare size={16} /> Thread: {activeSession}</h3>
-              <span className="badge badge-info">{messages.length} messages</span>
+              <h3><MessageSquare size={16} /> Session: {activeSession}</h3>
+              <span className="badge badge-info">{messages.length} items</span>
             </div>
 
             <div className="chat-messages" ref={chatRef}>
@@ -149,7 +149,7 @@ function ShortTermPanel() {
                 <div className="empty-state empty-state-compact"><p>No messages yet. Send one below.</p></div>
               )}
               {messages.map((m, i) => (
-                <div key={i} className={`chat-msg ${m.role}`}>
+                <div key={m.item_id || i} className={`chat-msg ${m.role}`}>
                   <div className="msg-role">{m.role}</div>
                   {m.content}
                 </div>
@@ -178,40 +178,32 @@ function ShortTermPanel() {
 
 function LongTermPanel() {
   const [memories, setMemories] = useState([])
-  const [users, setUsers] = useState([])
-  const [filterUser, setFilterUser] = useState('')
-  const [userId, setUserId] = useState('')
-  const [topic, setTopic] = useState('')
-  const [memory, setMemory] = useState('')
+  const [path, setPath] = useState('/profile/')
+  const [content, setContent] = useState('')
+  const [description, setDescription] = useState('')
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const loadMemories = () => {
-    api.listMemories(filterUser || undefined)
+    api.listMemories()
       .then(setMemories)
       .catch((e) => setError(`Failed to load memories: ${e.message}`))
   }
 
-  const loadUsers = () => {
-    api.listMemoryUsers()
-      .then(setUsers)
-      .catch((e) => setError(`Failed to load users: ${e.message}`))
-  }
-
-  useEffect(() => { loadMemories(); loadUsers() }, [])
-  useEffect(loadMemories, [filterUser])
+  useEffect(loadMemories, [])
 
   const saveMemory = async (e) => {
     e.preventDefault()
-    if (!userId.trim() || !topic.trim() || !memory.trim()) return
+    if (!path.trim() || !content.trim()) return
     setLoading(true)
     setError(null)
     try {
-      await api.upsertMemory({ user_id: userId, topic, memory })
-      setTopic('')
-      setMemory('')
+      await api.putMemory({ path, content, description: description || undefined })
+      setContent('')
+      setDescription('')
       loadMemories()
-      loadUsers()
     } catch (e) {
       setError(`Failed to save memory: ${e.message}`)
     }
@@ -223,11 +215,23 @@ function LongTermPanel() {
     try {
       await api.deleteMemory(id)
       loadMemories()
-      loadUsers()
     } catch (e) {
       setError(`Failed to delete memory: ${e.message}`)
     }
   }
+
+  const search = async (e) => {
+    e.preventDefault()
+    if (!query.trim()) { setResults(null); return }
+    setError(null)
+    try {
+      setResults(await api.searchMemories({ query, limit: 5 }))
+    } catch (e) {
+      setError(`Search failed: ${e.message}`)
+    }
+  }
+
+  const shown = results ?? memories
 
   return (
     <div>
@@ -241,99 +245,78 @@ function LongTermPanel() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className="card">
           <div className="card-header">
-            <h3><Plus size={16} /> Store Memory</h3>
+            <h3><Plus size={16} /> Save Memory</h3>
           </div>
           <form onSubmit={saveMemory}>
             <div className="form-group">
-              <label>User ID</label>
-              <input value={userId} onChange={(e) => setUserId(e.target.value)}
-                placeholder="user@example.com" />
+              <label>Path</label>
+              <input value={path} onChange={(e) => setPath(e.target.value)}
+                placeholder="/preferences/response-style.md" />
             </div>
             <div className="form-group">
-              <label>Topic (key)</label>
-              <input value={topic} onChange={(e) => setTopic(e.target.value)}
-                placeholder="preferred_language" />
-            </div>
-            <div className="form-group">
-              <label>Memory (value)</label>
-              <textarea value={memory} onChange={(e) => setMemory(e.target.value)}
-                placeholder="Python — user asked about data engineering"
+              <label>Content</label>
+              <textarea value={content} onChange={(e) => setContent(e.target.value)}
+                placeholder="Prefers concise answers with code samples."
                 rows={3}
                 style={{ width: '100%', padding: '8px 14px', background: 'var(--bg-inset)', border: '1px solid var(--border-light)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, fontFamily: 'var(--font)', resize: 'vertical' }} />
             </div>
+            <div className="form-group">
+              <label>Description (improves retrieval)</label>
+              <input value={description} onChange={(e) => setDescription(e.target.value)}
+                placeholder="Response style" />
+            </div>
             <button className="btn btn-primary btn-sm" type="submit" disabled={loading} style={{ width: '100%' }}>
-              <Key size={14} /> Save (Upsert)
+              <Key size={14} /> Save (put)
             </button>
           </form>
           <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
-            Existing memories with the same user + topic are updated automatically.
+            Writing to an existing path replaces its content. Your email is the actor_id.
           </div>
         </div>
 
         <div className="card">
           <div className="card-header">
-            <h3><Bot size={16} /> Users</h3>
+            <h3><Search size={16} /> Recall</h3>
           </div>
-          {users.length === 0 ? (
-            <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)' }}>No memories stored yet.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div
-                className="list-item-card"
-                style={{
-                  padding: '8px 12px', cursor: 'pointer', fontSize: 13,
-                  background: !filterUser ? 'var(--accent-dim)' : undefined,
-                  borderColor: !filterUser ? 'var(--border-accent)' : undefined,
-                }}
-                onClick={() => setFilterUser('')}
-              >All users</div>
-              {users.map((u) => (
-                <div
-                  key={u.user_id}
-                  className="list-item-card"
-                  style={{
-                    padding: '8px 12px', cursor: 'pointer',
-                    background: filterUser === u.user_id ? 'var(--accent-dim)' : undefined,
-                    borderColor: filterUser === u.user_id ? 'var(--border-accent)' : undefined,
-                  }}
-                  onClick={() => { setFilterUser(u.user_id); setUserId(u.user_id) }}
-                >
-                  <div className="td-mono-bold" style={{ fontSize: 12 }}>{u.user_id}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {u.memory_count} memories
-                  </div>
-                </div>
-              ))}
-            </div>
+          <form onSubmit={search} style={{ display: 'flex', gap: 8 }}>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="How should answers be formatted?"
+              style={{ flex: 1, padding: '8px 14px', background: 'var(--bg-inset)', border: '1px solid var(--border-light)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+            <button className="btn btn-primary btn-sm" type="submit"><Search size={14} /></button>
+          </form>
+          {results && (
+            <button className="btn btn-xs" style={{ marginTop: 8 }} onClick={() => { setResults(null); setQuery('') }}>
+              Clear search
+            </button>
           )}
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <h3><Brain size={16} /> Memory Store</h3>
-          <span className="badge badge-info">{memories.length} memories</span>
+          <h3><Brain size={16} /> {results ? 'Search Results' : 'Memory Store'}</h3>
+          <span className="badge badge-info">{shown.length} entries</span>
         </div>
 
-        {memories.length === 0 ? (
+        {shown.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><Brain size={36} /></div>
-            <p>No long-term memories stored yet. Add one using the form.</p>
+            <p>{results ? 'No matching memories.' : 'No memories yet. Run the Agent Memory lab or save one using the form.'}</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {memories.map((m) => (
+            {shown.map((m) => (
               <div key={m.memory_id} className="list-item-card" style={{ padding: '12px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                   <div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{m.topic}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{m.user_id}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{m.path}</span>
+                    {m.description && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{m.description}</span>}
+                    {m.score != null && <span className="badge badge-info" style={{ marginLeft: 8 }}>score {m.score.toFixed(4)}</span>}
                   </div>
                   <button className="btn btn-danger btn-icon btn-xs" onClick={() => deleteMemory(m.memory_id)}>
                     <X size={12} />
                   </button>
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>{m.memory}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.content}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
                   Updated: {m.updated_at}
                 </div>
@@ -349,15 +332,24 @@ function LongTermPanel() {
 
 export default function AgentMemory() {
   const [tab, setTab] = useState('short')
+  const [stores, setStores] = useState(null)
+
+  useEffect(() => { api.agentStores().then(setStores).catch(() => {}) }, [])
 
   return (
     <div>
       <div className="page-header">
         <h2>Agent Memory</h2>
         <p>
-          Explore both memory layers backed by Lakebase: <strong>short-term</strong> (thread-based
-          conversations) and <strong>long-term</strong> (extracted key-value knowledge across sessions).
+          Managed agent memory backed by Lakebase: <strong>sessions</strong> hold one conversation's
+          transcript, and <strong>memory</strong> holds durable facts recalled across conversations with
+          semantic search. A <strong>memory pipeline</strong> (run from the lab notebook) distills sessions into memory.
         </p>
+        {stores && (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            Session store <code>{stores.session_store}</code> &middot; memory store <code>{stores.memory_store}</code> &middot; actor <code>{stores.actor_id}</code>
+          </p>
+        )}
       </div>
       <LabBanner pageId="agent" />
 

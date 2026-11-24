@@ -1,38 +1,48 @@
 # Agentic Memory
 
-Use Lakebase as persistent memory for AI agents — both short-term conversation history and long-term knowledge extraction across sessions.
+Give AI agents managed **sessions** (short-term state for one conversation) and **memory** (durable facts recalled across conversations), and use **memory pipelines** to distill one into the other. Both stores are fully managed and backed by Lakebase, and they work with agents built on any framework.
+
+![Agent memory and sessions overview](../../docs/images/agent_memory_overview.png)
 
 ## Labs
 
 | Lab | What You'll Learn |
 |-----|-------------------|
-| `Agent_Memory` | Short-term memory (thread-based conversations), long-term memory (key-value knowledge store), querying both layers, framework integration patterns |
+| `Agent_Memory` | Session stores and conversation replay; memory stores with `put` / `list` / `search`; memory pipelines that distill and merge entries; store permissions and `actor_id` scoping; the legacy self-managed Lakebase pattern for reference |
 
 ## Prerequisites
 
-- Complete **`00_Setup_Lakebase_Project`** (foundation — seeds the `agent_sessions`, `agent_messages`, and `agent_memory_store` tables)
+- **Agent Memory Sessions preview (Beta)**: a workspace admin must enable **Agent Memory Sessions** on the workspace **Previews** page.
+- **`databricks-agentbricks` ≥ 0.8.0**: installed by the notebook (Python 3.10+).
+- **Distillation model access (Part 3)**: permission to query the memory pipeline model through AI Gateway. The notebook defaults to `system.ai.gpt-5-4-mini`. The model must support structured output; some newer Anthropic models reject it, and the pipeline run fails.
+- **Store quota**: a workspace holds up to 50 memory stores. The lab creates one memory store and one session store per participant (`lab-<user>-memory`, `lab-<user>-sessions`), so run the cleanup cell afterwards.
+- Complete **`00_Setup_Lakebase_Project`**, which provides the shared `_setup` helpers.
+- **Lab Console (optional)**: the notebook grants the app's service principal WRITE on your two stores so the **Agent Memory** page can use them.
 
 ## Key Concepts
 
-- **Short-term memory** — Entire conversations stored per thread ID using checkpointing; maintains context for follow-up questions within a session
-- **Long-term memory** — Key information extracted from multiple conversations and stored as key-value pairs; enables personalization across sessions
-- **Lakebase checkpoint saver** — Frameworks like LangGraph use Lakebase as a checkpoint backend for durable agent state
-- **No extra infrastructure** — Use the same Lakebase instance your app already connects to
+- **Agent sessions**: store the state of one interaction, usually the conversation history. A session store holds sessions, and each session holds ordered, immutable session items. The agent reads the session at the start of a turn and appends to it as the interaction runs.
+- **Agent memory**: stores durable facts, preferences, and decisions that the agent recalls in later, separate conversations with semantic search. Each entry is identified by `actor_id` (whose memory it is), an optional `session_id`, and a filesystem-like `path`.
+- **Memory pipelines**: read conversations from a session store, distill durable facts, and write them to a memory store. Runs can be manual, scheduled (about every 24 hours), or always-on. Each run also merges overlapping entries and splits oversized ones, including entries your agent wrote directly.
+- **The store is the security boundary**: `actor_id` separates memories but is not access control. Access is granted per store (READ or WRITE) to users or service principals.
+- **Independent stores**: deleting a session, or a whole session store, never deletes memory already saved.
 
 ## Documentation
 
-- [AI agent memory](https://docs.databricks.com/aws/en/generative-ai/agent-framework/stateful-agents)
-- [What is Lakebase Autoscaling?](https://docs.databricks.com/aws/en/oltp/projects/about)
-- [Connect to your database](https://docs.databricks.com/aws/en/oltp/projects/connect)
+- [Agent memory and sessions](https://docs.databricks.com/aws/en/generative-ai/agent-framework/stateful-agents)
+- [Agent sessions](https://docs.databricks.com/aws/en/agents/agent-memory/managed-sessions)
+- [Agent memory](https://docs.databricks.com/aws/en/agents/agent-memory/managed-memory)
+- [Agent memory pipelines](https://docs.databricks.com/aws/en/agents/agent-memory/memory-pipelines)
+- [Manage store permissions](https://docs.databricks.com/aws/en/agents/agent-memory/store-permissions)
+- [Tutorial: Add sessions and memory to an existing agent](https://docs.databricks.com/aws/en/agents/agent-memory/existing-agent-tutorial)
 
-## App Templates
+## Framework Integrations
 
-| Framework | Template | Memory Types |
-|-----------|----------|-------------|
-| LangGraph | `agent-langgraph-advanced` | Short-term + Long-term |
-| OpenAI Agents SDK | `agent-openai-advanced` | Short-term |
+`databricks-agentbricks` includes adapters for the OpenAI Agents SDK and LangGraph:
 
-```bash
-git clone https://github.com/databricks/app-templates.git
-cd app-templates/agent-langgraph-advanced
-```
+| Framework | Sessions | Memory |
+|-----------|----------|--------|
+| OpenAI Agents SDK | `databricks_agentkit.openai.session_store(...)` | `databricks_agentkit.openai.memory_tools(user_id, store=...)` |
+| LangGraph | `databricks_agentkit.langgraph.checkpointer(store=...)` | `databricks_agentkit.langgraph.memory_tools(user_id, store=...)` |
+
+The `memory_tools` adapters give an agent four tools: `recall`, `remember`, `forget`, and `list_memories`. A LangGraph checkpointer stores serialized checkpoints that a memory pipeline can't distill, so give a LangGraph agent a separate transcript session store if it also uses a pipeline.

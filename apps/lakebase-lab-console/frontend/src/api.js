@@ -50,19 +50,19 @@ export const api = {
   tableStats: () => request('/api/data/stats'),
   runQuery: (sql) => request('/api/data/query', { method: 'POST', body: JSON.stringify({ sql }) }),
 
-  // Agent memory — short-term (sessions/messages)
+  // Agent memory — managed sessions (short-term) and memory (long-term)
+  agentStores: () => request('/api/agent/stores'),
   listSessions: () => request('/api/agent/sessions'),
   createSession: (data) => request('/api/agent/sessions', { method: 'POST', body: JSON.stringify(data) }),
-  deleteSession: (id) => request(`/api/agent/sessions/${id}`, { method: 'DELETE' }),
-  getMessages: (id) => request(`/api/agent/sessions/${id}/messages`),
+  deleteSession: (id) => request(`/api/agent/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getMessages: (id) => request(`/api/agent/sessions/${encodeURIComponent(id)}/messages`),
   appendMessage: (id, data) =>
-    request(`/api/agent/sessions/${id}/messages`, { method: 'POST', body: JSON.stringify(data) }),
-
-  // Agent memory — long-term (memory store)
-  listMemories: (userId) => request(`/api/agent/memories${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`),
-  upsertMemory: (data) => request('/api/agent/memories', { method: 'POST', body: JSON.stringify(data) }),
-  deleteMemory: (id) => request(`/api/agent/memories/${id}`, { method: 'DELETE' }),
-  listMemoryUsers: () => request('/api/agent/memories/users'),
+    request(`/api/agent/sessions/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify(data) }),
+  listMemories: (pathPrefix) =>
+    request(`/api/agent/memories${pathPrefix ? `?path_prefix=${encodeURIComponent(pathPrefix)}` : ''}`),
+  putMemory: (data) => request('/api/agent/memories', { method: 'POST', body: JSON.stringify(data) }),
+  deleteMemory: (id) => request(`/api/agent/memories/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  searchMemories: (data) => request('/api/agent/memories/search', { method: 'POST', body: JSON.stringify(data) }),
 
   // Observability
   obsDatabaseStats: () => request('/api/observability/database'),

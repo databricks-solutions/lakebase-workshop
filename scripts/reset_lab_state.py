@@ -237,6 +237,48 @@ def drop_postgres_catalog(ctx: h.Ctx, catalog_id: str, action: Action, dry_run: 
         action.detail = f"{type(e).__name__}: {str(e)[:200]}"
 
 
+def drop_memory_pipeline(ctx: h.Ctx, pair: str, action: Action, dry_run: bool) -> None:
+    """Delete the memory pipeline joining `session_store|memory_store` (memories it wrote stay)."""
+    session_store, _, memory_store = pair.partition("|")
+    try:
+        pipeline = h.find_agent_memory_pipeline(ctx, session_store, memory_store)
+    except Exception as e:
+        action.status = "error"
+        action.detail = f"{type(e).__name__}: {str(e)[:200]}"
+        return
+    if pipeline is None:
+        action.status = "absent"
+        return
+    if dry_run:
+        action.status = "would-delete"
+        return
+    try:
+        ctx.w.api_client.do("DELETE", f"{h.AGENTS_API}/{pipeline['name']}")
+        action.status = "deleted"
+    except Exception as e:
+        action.status = "error"
+        action.detail = f"{type(e).__name__}: {str(e)[:200]}"
+
+
+def drop_agent_store(ctx: h.Ctx, collection: str, store_id: str, action: Action, dry_run: bool) -> None:
+    """Delete a managed session store or memory store and all of its data."""
+    path = f"{h.AGENTS_API}/{collection}/{store_id}"
+    try:
+        ctx.w.api_client.do("GET", path)
+    except Exception:
+        action.status = "absent"
+        return
+    if dry_run:
+        action.status = "would-delete"
+        return
+    try:
+        ctx.w.api_client.do("DELETE", path)
+        action.status = "deleted"
+    except Exception as e:
+        action.status = "error"
+        action.detail = f"{type(e).__name__}: {str(e)[:200]}"
+
+
 def drop_pg_table(conn, schema: str, table: str, action: Action, dry_run: bool) -> None:
     if table in SEEDED_TABLES:
         action.status = "refused"
@@ -352,6 +394,12 @@ def main() -> int:
             drop_uc_table(ctx, target, action, args.dry_run)
         elif kind == "postgres_catalog":
             drop_postgres_catalog(ctx, target, action, args.dry_run)
+        elif kind == "memory_pipeline":
+            drop_memory_pipeline(ctx, target, action, args.dry_run)
+        elif kind == "memory_store":
+            drop_agent_store(ctx, "memory-stores", target, action, args.dry_run)
+        elif kind == "session_store":
+            drop_agent_store(ctx, "session-stores", target, action, args.dry_run)
         elif conn is None:
             action.status = "skipped"
             action.detail = "no Postgres connection"

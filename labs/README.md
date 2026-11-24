@@ -25,7 +25,7 @@ Start here → [`labs/<folder>/README.md`](.) → open the file in **What to run
 |---|-----|------------|-------|
 | 1 | [Data Operations](data-operations/) | [`Data_Operations.py`](data-operations/Data_Operations.py) · optional [`Advanced_Postgres.sql`](data-operations/Advanced_Postgres.sql) | CRUD, JSONB, arrays, triggers, transactions |
 | 2 | [Data API](data-api/) | [`Data_API.py`](data-api/Data_API.py) | PostgREST, `authenticator` role, OAuth bearer, RLS |
-| 3 | [Agentic Memory](agentic-memory/) | [`Agent_Memory.py`](agentic-memory/Agent_Memory.py) | Session + long-term agent memory |
+| 3 | [Agentic Memory](agentic-memory/) | [`Agent_Memory.py`](agentic-memory/Agent_Memory.py) | Managed sessions, memory + memory pipelines |
 | 4 | [Lakebase Search](lakebase-search/) *(Beta)* | [`Lakebase_Search.py`](lakebase-search/Lakebase_Search.py) | Vector + BM25 + hybrid RRF |
 | 5 | [App Deployment](app-deployment/) | [`Deploy_Lab_Console_App.py`](app-deployment/Deploy_Lab_Console_App.py) | Capstone: React + FastAPI Lab Console |
 
@@ -75,7 +75,7 @@ Numbered for the workshop validator and facilitators. Prefer the **track tables*
 | 6 | [Observability](observability/) | `observability/` | pg_stat views, index analysis, connection monitoring |
 | 7 | [Authentication, Security & Compliance](authentication/) | `authentication/` | OAuth tokens, two-layer permissions, role grants, encryption/CMK, Private Link, compliance profiles |
 | 8 | [Backup & Recovery](backup-recovery/) | `backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
-| 9 | [Agentic Memory](agentic-memory/) | `agentic-memory/` | Persistent AI agent memory with session/message storage |
+| 9 | [Agentic Memory](agentic-memory/) | `agentic-memory/` | Managed agent sessions, memory, and memory pipelines |
 | 10 | [Online Feature Store](online-feature-store/) | `online-feature-store/` | Real-time ML feature serving powered by Lakebase Autoscaling |
 | 11 | [App Deployment](app-deployment/) | `app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |
 | 12 | [Data API](data-api/) | `data-api/` | PostgREST REST access with an `authenticator` role, OAuth bearer tokens, and row-level security |
