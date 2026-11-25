@@ -282,11 +282,13 @@ print(f"✓ Stored {len(MEMORIES)} long-term memories for {ACTOR_ID}")
 # COMMAND ----------
 
 def show_memories(title):
-    entries = sorted(memory_store.list(actor_id=ACTOR_ID), key=lambda m: m.path)
+    # The same path can exist once per session plus once with no session, so key by (session, path).
+    entries = sorted(memory_store.list(actor_id=ACTOR_ID), key=lambda m: (m.path, m.session_id or ""))
     print(f"{title} — {len(entries)} entries for {ACTOR_ID}:")
     for m in entries:
-        print(f"  {m.path}: {(m.content or '').replace(chr(10), ' | ')}")
-    return {m.path: m.content for m in entries}
+        scope = f"[{m.session_id}] " if m.session_id else ""
+        print(f"  {scope}{m.path}: {(m.content or '').replace(chr(10), ' | ')}")
+    return {(m.session_id or "(no session)", m.path): m.content for m in entries}
 
 before_pipeline = show_memories("Memory store")
 
