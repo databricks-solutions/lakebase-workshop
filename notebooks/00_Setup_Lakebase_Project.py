@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # 00 — Set Up Your Lakebase Project
 # MAGIC
@@ -122,14 +126,47 @@ print(f"PG Schema:  {PG_SCHEMA}")
 
 # COMMAND ----------
 
+# DBTITLE 1,Create, reuse, or restore the Lakebase project
 from databricks.sdk.service.postgres import Project, ProjectSpec
+from databricks.sdk.errors import NotFound
 import time
 
+PROJECT_NAME = f"projects/{PROJECT_ID}"
+
+
+def _ts(t):
+    """Return an ISO string for a set timestamp, or None if unset/empty."""
+    if t is None or getattr(t, "seconds", 1) == 0:
+        return None
+    return t.ToJsonString() if hasattr(t, "ToJsonString") else str(t)
+
+
 try:
-    existing = w.postgres.get_project(name=f"projects/{PROJECT_ID}")
+    existing = w.postgres.get_project(name=PROJECT_NAME)
+except NotFound:
+    existing = None
+
+if existing is not None and _ts(getattr(existing, "delete_time", None)):
+    # get_project still returns soft-deleted projects (until purge_time), but their
+    # branches/endpoints return 404. Restore it so the endpoint wait below succeeds.
+    print(f"Project {existing.name} was soft-deleted at {_ts(existing.delete_time)} "
+          f"(purges at {_ts(getattr(existing, 'purge_time', None))}). Restoring ...")
+    if hasattr(w.postgres, "undelete_project"):
+        w.postgres.undelete_project(name=PROJECT_NAME).wait()
+    else:  # older SDKs without undelete_project
+        w.api_client.do("POST", f"/api/2.0/postgres/{PROJECT_NAME}/undelete", body={})
+        for _ in range(60):
+            if not _ts(getattr(w.postgres.get_project(name=PROJECT_NAME), "delete_time", None)):
+                break
+            time.sleep(5)
+    existing = w.postgres.get_project(name=PROJECT_NAME)
+    if _ts(getattr(existing, "delete_time", None)):
+        raise RuntimeError(f"Project {PROJECT_NAME} is still marked deleted after undelete.")
+    print(f"✓ Project restored: {existing.name}")
+elif existing is not None:
     print(f"Project already exists: {existing.name}")
     print(f"Display name: {existing.status.display_name}")
-except Exception:
+else:
     print(f"Creating project: {PROJECT_ID} ...")
     operation = w.postgres.create_project(
         project=Project(
