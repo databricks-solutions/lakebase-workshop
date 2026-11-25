@@ -143,7 +143,7 @@ LABS: tuple[Lab, ...] = (
         order=20,
         timeout_s=900,
         requires=("setup",),
-        sentinels=("✓ Connected", "Current user:", "Your connection details:", "SSL in use:"),
+        sentinels=("✓ Connected", "Current user:", "Your connection details (this notebook uses OAuth):", "SSL in use:"),
         forbidden=(REPAIR_WARNING,),
         notes="Read-only. Good cheap smoke test that OAuth token minting and TLS work.",
     ),

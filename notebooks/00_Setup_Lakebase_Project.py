@@ -74,11 +74,16 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" "protobuf>=5.29.5,<6" --quiet
+# MAGIC %pip install "databricks-sdk>=0.81.0" "psycopg[binary]>=3.0" --quiet
 
 # COMMAND ----------
 
-dbutils.library.restartPython()
+# %pip above installs into the notebook env. On serverless, prefer the Environment
+# side pane (or job environment deps) so packages are ready before code runs —
+# %restart_python / dbutils.library.restartPython() can crash the serverless kernel.
+# Interactively, if imports fail after %pip, uncomment ONE of:
+# %restart_python
+# dbutils.library.restartPython()
 
 # COMMAND ----------
 
