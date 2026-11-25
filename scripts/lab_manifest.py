@@ -11,6 +11,8 @@ Placeholders usable in `sql`, `creates`, and `params` values:
     {uc_schema}    Unity Catalog schema         (lakebase_lab_<user>)
     {fed_catalog}  Federated Lakebase UC catalog (lb_fed_<user>)
     {project}      Lakebase project id          (lakebase-lab-<user>)
+    {session_store} managed agent session store (lab-<user>-sessions)
+    {memory_store}  managed agent memory store  (lab-<user>-memory)
     {user}         participant email
 """
 
@@ -27,6 +29,7 @@ GATE_APP = "app"            # Lab Console app deployed in the workspace
 GATE_SEARCH = "search"      # Lakebase Search enabled on the project (UI, irreversible)
 GATE_DATA_API = "data_api"  # Data API enabled on the project -> `authenticator` role
 GATE_SPARK = "spark"        # notebook needs Spark / UC write access
+GATE_AGENT_MEMORY = "agent_memory"  # Agent Memory Sessions preview enabled (admin, Previews page)
 
 
 @dataclass(frozen=True)
@@ -253,31 +256,32 @@ LABS: tuple[Lab, ...] = (
         id="agent_memory",
         path="labs/agentic-memory/Agent_Memory.py",
         order=70,
-        timeout_s=900,
+        # A memory pipeline run takes ~2-4 minutes, plus ~75 s for session items to age.
+        timeout_s=1500,
         requires=("setup",),
+        gates=(GATE_AGENT_MEMORY,),
         sentinels=(
             "✓ Thread created:",
             "✓ Stored 7 messages in thread",
             "✓ Stored 5 long-term memories for",
+            "✓ Memory pipeline ready:",
+            "✓ Memory pipeline run succeeded",
         ),
-        forbidden=(REPAIR_WARNING,),
+        forbidden=("✗ Memory pipeline run did not succeed", REPAIR_WARNING),
         checks=(
-            sql(
-                "long-term memories upserted (5 topics, not duplicated)",
-                "SELECT count(*) FROM {schema}.agent_memory_store WHERE user_id = '{user}'",
-                "== 5",
-            ),
-            sql(
-                "conversation thread persisted with all 7 messages",
-                "SELECT count(*) FROM {schema}.agent_messages m JOIN {schema}.agent_sessions s "
-                "ON s.session_id = m.session_id "
-                "WHERE s.metadata->>'purpose' = 'lakebase-workshop-demo'",
-                ">= 7",
-            ),
+            sdk("session store holds the lab conversation", "agent_session_count:7"),
+            sdk("memory store has entries for the participant", "agent_memory_count:1"),
+            sdk("memory pipeline exists for the store pair", "agent_memory_pipeline"),
         ),
-        creates=("rows:agent_sessions:metadata->>'purpose'=lakebase-workshop-demo",),
-        notes="Uses a fresh uuid thread per run, so sessions/messages accumulate; the "
-        "memory store is a real upsert and stays at 5 rows.",
+        creates=(
+            "memory_pipeline:{session_store}|{memory_store}",
+            "memory_store:{memory_store}",
+            "session_store:{session_store}",
+        ),
+        notes="Managed agent sessions + memory (Beta). Each run adds a fresh session; memory "
+        "entries are put() at fixed paths, then the pipeline may merge or delete them, so the "
+        "memory check only asserts the store is non-empty. Reset deletes the pipeline and both "
+        "stores (the workspace limit is 50 memory stores).",
     ),
     # ------------------------------------------------------------------ #
     Lab(

@@ -57,6 +57,20 @@ class UserContext:
         if not self.schema and self.project_id:
             self.schema = self.project_id.replace("-", "_")
 
+    # Managed agent memory stores created by labs/agentic-memory/Agent_Memory.py.
+    # Must match SESSION_STORE_ID / MEMORY_STORE_ID in labs/_setup.py.
+    @property
+    def _store_slug(self) -> str:
+        return _sanitize_email(self.email)[:40].rstrip("-")
+
+    @property
+    def session_store_id(self) -> str:
+        return f"lab-{self._store_slug}-sessions"
+
+    @property
+    def memory_store_id(self) -> str:
+        return f"lab-{self._store_slug}-memory"
+
 
 _local_context: UserContext | None = None
 

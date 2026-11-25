@@ -243,6 +243,41 @@ def _warehouse_id(ctx: h.Ctx) -> str:
     return warehouses[0].id
 
 
+def _check_agent_session_count(ctx: h.Ctx, min_items: str) -> tuple[bool, str]:
+    """The participant's newest lab session holds at least `min_items` items."""
+    store = h.agent_store_id(ctx.user_email, "sessions")
+    try:
+        sessions = [s for s in h.agents_list_all(ctx, f"/session-stores/{store}/sessions", "sessions")
+                    if s.get("actor_id") == ctx.user_email]
+        if not sessions:
+            return False, f"no sessions for {ctx.user_email} in {store}"
+        newest = max(sessions, key=lambda s: s.get("create_time", ""))
+        items = h.agents_list_all(ctx, f"/session-stores/{store}/sessions/{newest['session_id']}/items",
+                          "session_items")
+        return len(items) >= int(min_items), f"{newest['session_id']}: {len(items)} items"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {str(e)[:160]}"
+
+
+def _check_agent_memory_count(ctx: h.Ctx, min_entries: str) -> tuple[bool, str]:
+    store = h.agent_store_id(ctx.user_email, "memory")
+    try:
+        entries = h.agents_list_all(ctx, f"/memory-stores/{store}/entries", "managed_memory_entries",
+                            {"actor_id": ctx.user_email})
+        return len(entries) >= int(min_entries), f"{len(entries)} entries in {store}"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {str(e)[:160]}"
+
+
+def _check_agent_memory_pipeline(ctx: h.Ctx, _arg: str) -> tuple[bool, str]:
+    try:
+        p = h.find_agent_memory_pipeline(ctx, h.agent_store_id(ctx.user_email, "sessions"),
+                                       h.agent_store_id(ctx.user_email, "memory"))
+        return (True, p["name"]) if p else (False, "no pipeline for the participant's store pair")
+    except Exception as e:
+        return False, f"{type(e).__name__}: {str(e)[:160]}"
+
+
 SDK_CHECKS = {
     "project_exists": _check_project_exists,
     "endpoint_ready": _check_endpoint_ready,
@@ -254,6 +289,9 @@ SDK_CHECKS = {
     "online_table_ok": _check_online_table_ok,
     "uc_row_count": _check_uc_row_count,
     "postgres_catalog_exists": _check_postgres_catalog_exists,
+    "agent_session_count": _check_agent_session_count,
+    "agent_memory_count": _check_agent_memory_count,
+    "agent_memory_pipeline": _check_agent_memory_pipeline,
 }
 
 

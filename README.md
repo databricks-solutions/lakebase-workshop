@@ -56,7 +56,7 @@ Every lab is independent. Pick whichever sounds interesting, or follow one of th
 |-----|----------------|
 | **Data Operations** | Create, read, update, and delete data; work with JSON and arrays |
 | **Data API** | Call Lakebase over REST (PostgREST) with an OAuth bearer token and row-level security |
-| **Agentic Memory** | Store and query AI agent conversation history |
+| **Agentic Memory** | Managed agent sessions, memory with semantic recall, and memory pipelines (Beta) |
 | **Lakebase Search** *(Beta)* | Add vector + keyword (BM25) search and hybrid ranking to your data |
 | **App Deployment** *(capstone)* | Deploy a full-stack web app backed by Lakebase |
 

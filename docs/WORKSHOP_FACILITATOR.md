@@ -35,7 +35,7 @@ After the foundation, participants follow a track based on their role. Each trac
 |-------|-----|----------|----------------|
 | 1 | Data Operations | `labs/data-operations/` | CRUD, JSONB, arrays, triggers, transactions |
 | 2 | Data API | `labs/data-api/` | PostgREST REST access, `authenticator` role, OAuth bearer, RLS |
-| 3 | Agentic Memory | `labs/agentic-memory/` | Persistent AI agent memory with sessions |
+| 3 | Agentic Memory | `labs/agentic-memory/` | Managed agent sessions, memory, and memory pipelines |
 | 4 | Lakebase Search *(Beta)* | `labs/lakebase-search/` | Vector + BM25 + hybrid RRF search (enablement is irreversible) |
 | 5 | App Deployment *(capstone)* | `labs/app-deployment/` | Full-stack React + FastAPI Lab Console app |
 
@@ -82,7 +82,7 @@ Every lab lives directly in `labs/`. No track folder structure — tracks are a 
 | Observability | `labs/observability/` | pg_stat views, index analysis, monitoring |
 | Authentication, Security & Compliance | `labs/authentication/` | OAuth tokens, roles, encryption/CMK, Private Link, compliance |
 | Backup & Recovery | `labs/backup-recovery/` | Checkpoint branches, snapshots, PITR, restore, cross-region DR note |
-| Agentic Memory | `labs/agentic-memory/` | Persistent agent memory pattern |
+| Agentic Memory | `labs/agentic-memory/` | Managed agent sessions, memory, and memory pipelines |
 | Lakebase Search *(Beta)* | `labs/lakebase-search/` | Vector + BM25 + hybrid RRF search (enablement irreversible) |
 | Online Feature Store | `labs/online-feature-store/` | Real-time ML feature serving with Lakebase |
 | App Deployment | `labs/app-deployment/` | Full-stack Lab Console app (capstone) |
@@ -403,7 +403,7 @@ Databricks Workspace
 | Synced Tables (`#sync`) | Reverse ETL synced-table status | `labs/reverse-etl/Reverse_ETL` |
 | Feature Store (`#feature-store`) | Online store + published online tables status | `labs/online-feature-store/Online_Feature_Store` |
 | Lakebase Search (`#search`) | Vector, keyword (BM25), hybrid search | `labs/lakebase-search/Lakebase_Search` |
-| Agent Memory (`#agent`) | Session/message + long-term memory | `labs/agentic-memory/Agent_Memory` |
+| Agent Memory (`#agent`) | Managed sessions + memory, recall search | `labs/agentic-memory/Agent_Memory` |
 | Auth & Permissions (`#auth`) | OAuth tokens, roles, grants | `labs/authentication/Authentication_and_Permissions` |
 | Backup & Recovery (`#backup`) | Snapshots, PITR | `labs/backup-recovery/Backup_and_Recovery` |
 | API Tester (`#api`) | Data API (PostgREST) primary; Console API + raw SQL | `labs/data-api/Data_API` |
@@ -455,7 +455,7 @@ Lakebase-Workshop/
 │   │   └── Observability_and_Monitoring.py
 │   ├── backup-recovery/                        # PITR, snapshots
 │   │   └── Backup_and_Recovery.py
-│   ├── agentic-memory/                         # Agent memory pattern
+│   ├── agentic-memory/                         # Managed agent sessions + memory
 │   │   └── Agent_Memory.py
 │   ├── authentication/                         # OAuth, roles, security & compliance
 │   │   └── Authentication_and_Permissions.py

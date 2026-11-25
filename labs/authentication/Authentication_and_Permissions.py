@@ -438,6 +438,6 @@ _c.close()
 # MAGIC | **Data API** | `labs/data-api/` | REST access with the `authenticator` role, OAuth bearer tokens, and RLS |
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, connection monitoring |
 # MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
-# MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with session/message storage |
+# MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Managed agent sessions, memory, and memory pipelines |
 # MAGIC | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving powered by Lakebase Autoscaling |
 # MAGIC | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app using Lakebase (capstone) |

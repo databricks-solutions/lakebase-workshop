@@ -498,7 +498,7 @@ print(f"\nEach call generates a fresh token. Cache them to avoid unnecessary API
 # MAGIC | **Observability** | `labs/observability/` | pg_stat views, index analysis, monitoring |
 # MAGIC | **Authentication** | `labs/authentication/` | OAuth tokens, roles, two-layer permissions |
 # MAGIC | **Backup & Recovery** | `labs/backup-recovery/` | Checkpoint branches, snapshots, point-in-time restore |
-# MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Persistent AI agent memory with sessions |
+# MAGIC | **Agentic Memory** | `labs/agentic-memory/` | Managed agent sessions, memory, and memory pipelines |
 # MAGIC | **Online Feature Store** | `labs/online-feature-store/` | Real-time ML feature serving |
 # MAGIC | **App Deployment** | `labs/app-deployment/` | Full-stack React + FastAPI app (this lab) |
 # MAGIC

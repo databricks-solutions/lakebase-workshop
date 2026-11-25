@@ -39,6 +39,21 @@ in the App Deployment lab). This:
 | **Workspace access** | User must be able to access the Databricks workspace and the app |
 | **Lakebase project** | User must have run `00_Setup_Lakebase_Project` to create their project |
 | **SP grant** | User must have completed Step 6 in setup (or the App Deployment lab) |
+| **Agent memory stores** *(Agent Memory page only)* | User must have run `labs/agentic-memory/Agent_Memory.py`, which creates their session + memory stores and grants the SP WRITE (Part 4) |
+
+## Agent Memory Store Permissions
+
+The **Agent Memory** page doesn't use Postgres. It calls the managed agent memory API (`/api/2.0/agents`) as the app's SP, against stores that each participant creates in `labs/agentic-memory/Agent_Memory.py`:
+
+| Store | ID | Created by |
+|-------|----|------------|
+| Session store | `lab-<user>-sessions` | Participant (Part 1) |
+| Memory store | `lab-<user>-memory` | Participant (Part 2) |
+
+- **The store is the security boundary.** A store grants READ or WRITE to users or service principals (not groups). `actor_id` only separates entries; it isn't access control. The app sets `actor_id` to the caller's email and checks that each session it touches belongs to the caller.
+- **The participant grants the SP** WRITE on both stores in Part 4 of the lab (`store.grant_permission(<app SP client id>)`). Only the store creator or a workspace admin can grant, and admins don't get data access automatically.
+- **Memory pipelines** run as the identity that created them (the participant). The SP needs no grant for them.
+- If the page shows *"no access to your stores"*, re-run Part 4. If it shows *"Not found"*, run the lab first, because deleting the stores in the cleanup cell also removes them from the app.
 
 ## How Authentication Works
 

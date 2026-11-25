@@ -179,9 +179,10 @@ def build_checks(ctx: h.Ctx) -> list[ApiCheck]:
         # --- agent memory --------------------------------------------------- #
         ApiCheck("Agent sessions from the memory lab", "/api/agent/sessions",
                  assertion=non_empty_list, after="agent_memory"),
-        ApiCheck("Long-term memories from the memory lab", "/api/agent/memories",
+        ApiCheck("Agent memory entries from the memory lab", "/api/agent/memories",
                  assertion=non_empty_list, after="agent_memory"),
-        ApiCheck("Memory store users", "/api/agent/memories/users",
+        ApiCheck("Agent memory recall", "/api/agent/memories/search", "POST",
+                 body={"query": "preferred programming language", "limit": 3},
                  assertion=non_empty_list, after="agent_memory"),
         # --- search --------------------------------------------------------- #
         ApiCheck("Search reports enabled with a built corpus", "/api/search/status",
